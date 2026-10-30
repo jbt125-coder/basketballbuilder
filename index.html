@@ -1,1 +1,1817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Basketball Hoops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1b1040; color: #fff4e6;
+  font-family: "Press Start 2P", ui-monospace, Menlo, monospace;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.scr { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: none; }
+.scr.on { display: flex; }
+button { font-family: inherit; }
 
+/* ––––– title screen + board selector ––––– */
+#scrTitle { flex-direction: column; align-items: center; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 18px); }
+.logo { font-weight: 400; text-align: center; color: #f8b800; font-size: clamp(24px, 6vw, 52px); line-height: 1.3; margin: 12px 0 8px;
+  text-shadow: 3px 3px 0 #d82800, 6px 6px 0 #000; }
+.sub { color: #58d8c0; font-size: 10px; margin: 4px 0 22px; text-align: center; line-height: 1.6; }
+.boards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 980px; }
+.board { flex: 1 1 260px; max-width: 310px; background: #26185a; border: 3px solid #000; box-shadow: inset 0 0 0 2px #3d2a80; border-radius: 12px;
+  padding: 10px; cursor: pointer; text-align: center; color: inherit; }
+.board.sel { box-shadow: inset 0 0 0 2px #3d2a80, 0 0 0 4px #f8d800; }
+.board canvas { width: 100%; aspect-ratio: 16 / 9; image-rendering: pixelated; display: block; border: 3px solid #000; border-radius: 6px; background: #000; }
+.bNum { color: #f87800; font-size: 10px; margin: 12px 0 8px; }
+.bName { color: #fcfcfc; font-size: 13px; line-height: 1.5; }
+.bSub { color: #c9b8ff; font-size: 8px; line-height: 1.8; margin-top: 8px; min-height: 3.6em; }
+.bBest { color: #f8d878; font-size: 9px; margin-top: 8px; }
+.bPlay { display: inline-block; margin-top: 10px; font-size: 11px; padding: 10px 16px; background: #d82800; color: #fff; border: 3px solid #000;
+  border-radius: 8px; box-shadow: inset -3px -3px 0 #8a1800; }
+.board.sel .bPlay { background: #1f9a50; box-shadow: inset -3px -3px 0 #0e5a2a; }
+.help { color: #8a78c8; font-size: 8px; line-height: 2.2; text-align: center; margin-top: 18px; }
+
+/* ––––– the game ––––– */
+#scrGame { flex-direction: column; background: #000; touch-action: none; }
+#hud { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: calc(env(safe-area-inset-top) + 6px) 10px 7px; font-size: 10px; color: #f8d878; background: #120a30; border-bottom: 3px solid #000; }
+#hBalls { display: flex; gap: 3px; min-width: 20px; }
+.bi { width: 13px; height: 13px; border-radius: 50%; background: #f07818; border: 2px solid #000; }
+.bi.k1 { background: conic-gradient(#e83020 0 25%, #fcfcfc 0 50%, #2060e0 0 75%, #f8d800 0); }
+.bi.k2 { background: #f8d030; }
+#hInfo { flex: 1; text-align: center; color: #58f8d0; }
+#hScore { color: #fcfcfc; }
+#hPause { font-size: 10px; background: #2a1c60; color: #e6dcff; border: 2px solid #4a3696; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+#stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#cv { display: block; image-rendering: pixelated; }
+#panel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8em;
+  background: rgba(0,0,0,.66); text-align: center; font-size: clamp(9px, 1.6vw, 14px); line-height: 1.7; padding: 10px; overflow-y: auto; }
+#panel.hide { display: none; }
+#panel h1 { margin: 0; font-size: 2.2em; line-height: 1.2; color: #f8b800; text-shadow: 3px 3px 0 #d82800, 5px 5px 0 #000; font-weight: 400; }
+#panel p { margin: 0; text-shadow: 2px 2px 0 #000; }
+#panel .bn { color: #f87800; }
+#panel .how { color: #cfcfcf; max-width: 46em; }
+#panel .tip { color: #8fd0ff; font-size: .8em; }
+#panel .row { display: flex; flex-wrap: wrap; justify-content: center; gap: .6em; }
+#panel button { font-size: 1.1em; padding: .75em 1.3em; background: #d82800; color: #fcfcfc; border: 3px solid #000;
+  box-shadow: inset -3px -3px 0 #8a1800; cursor: pointer; }
+#panel button.sm { font-size: .8em; padding: .6em .8em; background: #bdbdbd; color: #000; box-shadow: inset -3px -3px 0 #8e8e8e; }
+#panel button.sel { outline: 3px solid #f8b800; outline-offset: 2px; }
+
+/* ––––– on-screen controller (phones and tablets) ––––– */
+#pad { display: none; flex-shrink: 0; align-items: center; justify-content: space-between; padding: 10px 20px calc(env(safe-area-inset-bottom) + 14px);
+  background: #c4c0b8; border-top: 4px solid #8a8680; min-height: 190px; }
+body.touch #pad { display: flex; }
+#dpad { position: relative; width: 156px; height: 156px; touch-action: none; flex-shrink: 0; }
+.dpH { position: absolute; left: 0; right: 0; top: 52px; height: 52px; background: #232323; border-radius: 6px; }
+.dpV { position: absolute; top: 0; bottom: 0; left: 52px; width: 52px; background: #232323; border-radius: 6px; }
+.dpA { position: absolute; color: #6a6a6a; font-size: 18px; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.dpA.u { left: 52px; top: 0; }
+.dpA.d { left: 52px; bottom: 0; }
+.dpA.l { left: 0; top: 52px; }
+.dpA.r { right: 0; top: 52px; }
+.dpA.on { color: #f8d800; }
+#abWrap { display: flex; gap: 16px; align-items: flex-end; }
+.pb { width: 78px; height: 78px; border-radius: 50%; background: #d82800; border: 4px solid #000; box-shadow: inset -5px -5px 0 #8a1800;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; touch-action: none; }
+.pb b { font-size: 20px; font-weight: 400; pointer-events: none; }
+.pb i { font-style: normal; font-size: 7px; margin-top: 5px; pointer-events: none; }
+.pb.on { box-shadow: inset 5px 5px 0 #8a1800; background: #b02000; }
+#btnA { margin-bottom: 30px; }
+body.land #pad { position: absolute; left: 0; right: 0; bottom: 0; background: transparent; border: none; min-height: 0; pointer-events: none;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+body.land #pad > * { pointer-events: auto; opacity: .78; }
+body.touch:not(.land) #stage { flex: none; }
+body.touch:not(.land) #pad { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- ================= TITLE: pick a board ================= -->
+<div class="scr" id="scrTitle">
+  <h1 class="logo">BASKETBALL<br>HOOPS</h1>
+  <div class="sub">PICK A BOARD</div>
+  <div class="boards" id="boards"></div>
+  <div class="help" id="help"></div>
+</div>
+
+<!-- ================= THE GAME ================= -->
+<div class="scr" id="scrGame">
+  <div id="hud"><span id="hBalls"></span><span id="hScore">0</span><span id="hInfo"></span><span id="hTime"></span><button type="button" id="hPause">II</button></div>
+  <div id="stage"><canvas id="cv"></canvas><div id="panel" class="hide"></div></div>
+  <div id="pad">
+    <div id="dpad"><div class="dpH"></div><div class="dpV"></div>
+      <span class="dpA u" id="dpU">&#9650;</span><span class="dpA d" id="dpD">&#9660;</span><span class="dpA l" id="dpL">&#9664;</span><span class="dpA r" id="dpR">&#9654;</span></div>
+    <div id="abWrap">
+      <div class="pb" id="btnB"><b>B</b><i>SHOOT</i></div>
+      <div class="pb" id="btnA"><b>A</b><i>JUMP</i></div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   BASKETBALL HOOPS
+   Board 1: the gym (the Teacherbase Hoops shot, one hoop on the right)
+   Board 2: hoops at the beach (Palm Court Hoops from QuizQuest)
+   Board 3: in the clouds, wearing the Air Jordann's
+============================================================ */
+
+/* ============================================================
+   SHARED CONSTANTS
+============================================================ */
+var W = 256, H = 144, FLOOR = 132;
+var BR = 4, BALL_G = 230, ANG = 60 * Math.PI / 180, RIM_W = 19;
+var RUN = 80, GRAV = 520, JUMP_V = 230;
+var FLOOR_PLAT = { x1: 0, x2: W, y: FLOOR, floor: true, id: 'floor' };
+var PLATFORM = { x1: 100, x2: 156, y: 90, id: 'plat' };
+var CLOUD_PLATS = [{ x1: 22, x2: 60, y: 108, id: 'c1' }, { x1: 168, x2: 202, y: 112, id: 'c2' }];
+var HOOPS = [
+  { name: 'LOW',  side: 1,  bx: 240, base: 247, y: 96, pts: 2, ph: 0 },
+  { name: 'MIDDLE', side: -1, bx: 12, base: 7, y: 62, pts: 3, ph: 2.1 },
+  { name: 'HIGH', side: 1,  bx: 204, base: 211, y: 32, pts: 5, ph: 4.2 }
+];
+/* make the lit hoops in order (LOW, MIDDLE, HIGH) to open the magic round: the middle platform flashes,
+   unlimited jumps and a magic hoop high on the left to slam dunk on */
+var MAGIC_HOOP = { bx: 12, y: 26 };
+var MAGIC_SECS = 20, DUNK_PTS = 10;
+// the super dunk chain (low, middle, high, then the glass hoop) and the magic shot into all four baskets
+var CHAIN_PTS = [4, 6, 10, 25], MAGIC_SHOT_PTS = 20, CHAIN_DIR = [-1, 1, -1];
+var MAGIC_COLS = ['#f878f8', '#78f8f8', '#f8f878', '#b078ff', '#fcfcfc'];
+var CHEERS = ['NICE SHOT!', 'SWEET!', 'NOICE!!', 'BALLER!!', 'BUCKETS!', 'SPLASH!', 'ON FIRE!', 'CASH!', 'MONEY!', 'SWISH!'];
+var CHEER_COLS = ['#f8d800', '#58f878', '#58d8f8', '#f878d8', '#f89838', '#c078f8', '#fcfcfc'];
+var SKY_PTS = 7, RAIN_HW = 10;
+var BEST_KEY = 'basketballHoopsBest_v1', SEL_KEY = 'basketballHoopsBoard_v1';
+
+var SHIRTS = ['#d82800', '#f87800', '#f8d800', '#38b818', '#1fb8a0', '#2858f0', '#8030d0', '#f05898', '#fcfcfc', '#303030'];
+var SKINS = ['#fcd8b0', '#f0b880', '#c88850', '#8a5430'];
+var HAIRC = ['#202020', '#6a3810', '#f8d878', '#d82800', '#2858f0', '#f05898', '#38b818', '#fcfcfc'];
+var HATS = [
+  { n: 'SHORT HAIR', r: ['........', '........', '........', '..hhhh..', '..hh....', '........'] },
+  { n: 'CAP', r: ['........', '........', '..hhhh..', '..hhhhhh', '........', '........'] },
+  { n: 'BACKWARDS CAP', r: ['........', '........', '..hhhh..', 'hhhhhh..', '........', '........'] },
+  { n: 'BEANIE', r: ['........', '....w...', '..hhhh..', '.hhhhhh.', '.wwwwww.', '........'] },
+  { n: 'AFRO', r: ['........', '..hhhh..', '.hhhhhh.', 'hhhhhhhh', 'hh.....h', 'hh......'] },
+  { n: 'SPIKY HAIR', r: ['........', '..h.h.h.', '..hhhhh.', '..hhhhh.', '..h.....', '........'] },
+  { n: 'HEADBAND', r: ['........', '........', '........', '..kkkk..', '..hhhhh.', '..k.....'] },
+  { n: 'CROWN', r: ['........', '..y.y.y.', '..yyyyy.', '..yryyy.', '..k.....', '........'] },
+  { n: 'BOW', r: ['........', '.hh.hh..', '..hhh...', '..kkkk..', '..kk....', '........'] },
+  { n: 'MOHAWK', r: ['....h...', '...hhh..', '...hhh..', '...hhh..', '........', '........'] },
+  { n: 'LONG HAIR', r: ['........', '........', '..hhhh..', '.hhhhhh.', '.hhh....', '.hh.....', '.hh.....', '.hh.....', '.hh.....', '.h......'] },
+  { n: 'PONYTAIL', r: ['........', '........', '..hhhh..', '.hhhhhh.', 'rhhh....', 'h.h.....', 'h.......', 'h.......', '.h......'] },
+  { n: 'PIGTAILS', r: ['........', '........', '..hhhh..', 'rhhhhhhr', 'hhh....h', 'h.h....h', 'h......h', '.h......'] }
+];
+var BODY = ['........', '..sssss.', '..sssEs.', '..sssss.', '...sss..', '.SSSSSS.', 'sSSSSSSs', 's.SSSS.s', '..SSSS..'];
+var BODY_UP = ['........', '..sssss.', '..sssEs.', '..sssss.', '...sss..', '.SSSSSS.', '.SSSSSS.', '..SSSS..', '..SSSS..'];
+var ARMS = ['.s.....s', '.s.....s', '.s.....s', '.s.....s', '.s.....s', '.s.....s', '.s.....s', '.s.....s'];
+var LEGS = [
+  ['..P..P..', '..P..P..', '.FF..FF.'],
+  ['..P..P..', '.P....P.', 'FF....FF'],
+  ['...PP...', '...PP...', '..FFF...']
+];
+// the player: blue jersey and a red cap, like the Teacherbase Hoops player; on the clouds the red high tops are the Air Jordann's
+var LOOK = { shirt: 5, skin: 0, hat: 1, hc: 3, shoe: 0 };
+var LOOK_SHOES = { shirt: 5, skin: 0, hat: 1, hc: 3, shoe: 1 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function $(id){ return document.getElementById(id); }
+function rand(a, b){ return a + Math.random() * (b - a); }
+function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
+function hyp(x, y){ return Math.sqrt(x * x + y * y); }
+function pick(a){ return a[Math.floor(Math.random() * a.length)]; }
+function sgn(v){ return v > 0 ? 1 : (v < 0 ? -1 : 0); }
+function fmt(s){ s = Math.max(0, Math.ceil(s)); var m = Math.floor(s / 60), r = s % 60; return m + ':' + (r < 10 ? '0' : '') + r; }
+function store(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function load(k){ try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+function shade(hex, k){
+  var n = parseInt(hex.slice(1), 16);
+  function f(v){ return clamp(Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k), 0, 255); }
+  return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(function(v){ var s = f(v).toString(16); return s.length < 2 ? '0' + s : s; }).join('');
+}
+function isTouch(){ return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0); }
+
+/* ============================================================
+   SOUND (synthesized, unlocked on the first key or tap)
+============================================================ */
+var AC = null;
+function ac(){
+  if (!AC){ try { var C = window.AudioContext || window.webkitAudioContext; if (C) AC = new C(); } catch (e) {} }
+  if (AC && AC.state === 'suspended'){ try { AC.resume(); } catch (e) {} }
+  return AC;
+}
+function tone(f, d, type, vol, slide, delay){
+  var a = ac(); if (!a) return;
+  type = type || 'square'; vol = vol || 0.06; slide = slide || 0; delay = delay || 0;
+  var t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d + 0.02);
+}
+function hiss(d, vol, freq){
+  var a = ac(); if (!a) return;
+  var n = Math.floor(a.sampleRate * d), buf = a.createBuffer(1, n, a.sampleRate), data = buf.getChannelData(0);
+  for (var i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+  var s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = buf; f.type = 'highpass'; f.frequency.value = freq || 3000;
+  g.gain.setValueAtTime(vol || 0.05, a.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + d);
+  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+}
+var sfx = {
+  dribble: function(){ tone(110, 0.05, 'square', 0.035, -40); },
+  bounce: function(v){ tone(90, 0.08, 'square', clamp(v, 0.01, 0.06), -30); },
+  rim: function(){ tone(700, 0.12, 'triangle', 0.06, -200); },
+  board: function(){ tone(160, 0.08, 'square', 0.05); },
+  swish: function(){ hiss(0.25, 0.06, 2500); tone(784, 0.1, 'square', 0.04, 0, 0.12); tone(1047, 0.1, 'square', 0.04, 0, 0.2); },
+  jump: function(){ tone(300, 0.1, 'square', 0.04, 300); },
+  jump2: function(){ tone(450, 0.1, 'square', 0.04, 400); },
+  tweet: function(){ tone(2200, 0.05, 'square', 0.02, 600); tone(2400, 0.05, 'square', 0.02, 500, 0.08); },
+  squish: function(){ hiss(0.2, 0.07, 500); tone(140, 0.15, 'square', 0.04, -60); },
+  hurt: function(){ tone(200, 0.2, 'square', 0.05, -120); },
+  bonus: function(){ var n = [523, 659, 784, 1047, 1319]; for (var i = 0; i < n.length; i++) tone(n[i], 0.12, 'square', 0.05, 0, i * 0.08); },
+  tick: function(){ tone(1000, 0.04, 'square', 0.03); },
+  over: function(){ var n = [392, 330, 262, 196]; for (var i = 0; i < n.length; i++) tone(n[i], 0.2, 'square', 0.06, 0, i * 0.18); },
+  fanfare: function(){ var n = [523, 659, 784, 1047, 784, 1047, 1319]; for (var i = 0; i < n.length; i++) tone(n[i], 0.14, 'square', 0.06, 0, i * 0.11); }
+};
+
+/* ============================================================
+   SPRITES
+============================================================ */
+function makeSpriteP(rows, pal){
+  var w = 0, i, j;
+  for (i = 0; i < rows.length; i++) if (rows[i].length > w) w = rows[i].length;
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = rows.length;
+  var x = cv.getContext('2d');
+  for (j = 0; j < rows.length; j++){
+    for (i = 0; i < rows[j].length; i++){
+      var ch = rows[j].charAt(i);
+      if (ch !== '.' && pal[ch]){ x.fillStyle = pal[ch]; x.fillRect(i, j, 1, 1); }
+    }
+  }
+  return cv;
+}
+function flipC(c){
+  var f = document.createElement('canvas'); f.width = c.width; f.height = c.height;
+  var x = f.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0);
+  return f;
+}
+var BIRDS = (function(){
+  var UP = ['....WW....HH..', '....WWW..HHEKK', '..BBBWWBBHHH..', '.BBBBBBBBBB...', 'TTBBBBBBBB....', 'T...BBBBB.....'];
+  var DN = ['..........HH..', '.........HHEKK', '..BBBBBBBHHH..', '.BBBBBBBBBB...', 'TTBBWWWWBB....', 'T...WWWWB.....', '.....WW.......'];
+  var kinds = [
+    { B: '#f890b8', W: '#f86890', H: '#f890b8', K: '#202020', T: '#f86890', legs: true },
+    { B: '#30c030', W: '#2060e0', H: '#e83020', K: '#f8d878', T: '#2060e0' },
+    { B: '#e83020', W: '#2060e0', H: '#e83020', K: '#f8f0d0', T: '#f8d800' },
+    { B: '#202020', W: '#202020', H: '#fcfcfc', K: '#f88818', T: '#202020' },
+    { B: '#f8e030', W: '#d8b818', H: '#f8e030', K: '#f89030', T: '#d8b818' },
+    { B: '#30c070', W: '#2060e0', H: '#4060f0', K: '#f86020', T: '#30c070', crest: true }
+  ];
+  function dress(rows, k){
+    var r = rows.slice();
+    if (k.crest) r.unshift('...........H..');
+    if (k.legs) for (var i = 0; i < 4; i++) r.push('.....L.L......');
+    return r;
+  }
+  var out = [];
+  for (var n = 0; n < kinds.length; n++){
+    var k = kinds[n], pal = { B: k.B, W: k.W, H: k.H, K: k.K, T: k.T, E: '#000000', L: k.W };
+    var a = makeSpriteP(dress(UP, k), pal), b = makeSpriteP(dress(DN, k), pal);
+    out.push({ col: k.B, fr: [{ r: a, l: flipC(a) }, { r: b, l: flipC(b) }] });
+  }
+  return out;
+})();
+/* ball styles: 0-2 on the beach and the clouds (make a basket and your next ball switches style),
+   3-5 are the three balls lying on the gym floor */
+var BALL_STYLES = [
+  { n: 'CLASSIC', base: '#f07818', edge: '#b04808', seam: '#3a1a08' },
+  { n: 'BEACH BALL', wedges: ['#e83020', '#fcfcfc', '#2060e0', '#f8d800'] },
+  { n: 'GOLD', base: '#f8d030', edge: '#b08008', seam: '#5a3a00' },
+  { n: 'LEATHER', base: '#9a5428', seam: '#3a1a08', leather: true },
+  { n: 'RED WHITE BLUE', stripes: ['#d82800', '#fcfcfc', '#2038ec'] },
+  { n: 'RUBBER', base: '#f87800', seam: '#201000' }
+];
+var BALL_IMGS = BALL_STYLES.map(function(st){
+  var c = document.createElement('canvas'); c.width = 9; c.height = 9;
+  var x = c.getContext('2d');
+  for (var j = 0; j < 9; j++){
+    for (var i = 0; i < 9; i++){
+      var dx = i - 4, dy = j - 4, d = dx * dx + dy * dy, col;
+      if (d > 20) continue;
+      if (st.wedges) col = d <= 1 ? '#fcfcfc' : st.wedges[Math.floor((Math.atan2(dy, dx) + Math.PI) / (Math.PI / 2)) % 4];
+      else if (st.stripes){ col = st.stripes[Math.floor((i + j + 20) / 2.4) % 3]; if (d > 13) col = shade(col, -0.3); }
+      else {
+        col = st.leather && (i + j) % 3 === 0 ? shade(st.base, -0.12) : st.base;
+        if (i === 4 || j === 4 || (Math.abs(Math.abs(dx) - 3) < 0.5 && Math.abs(dy) < 3)) col = st.seam;
+        else if (d > 13) col = st.edge || shade(col, -0.3);
+      }
+      x.fillStyle = col; x.fillRect(i, j, 1, 1);
+    }
+  }
+  x.fillStyle = 'rgba(255,255,255,.55)'; x.fillRect(2, 2, 2, 1);
+  return c;
+});
+var HEART = makeSpriteP(['.rr.rr.', 'rwrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'], { r: '#d82800', w: '#fcfcfc' });
+
+var AV_CACHE = {};
+function avatarImg(look, legs, arms, face){
+  var key = look.shirt + ',' + look.skin + ',' + look.hat + ',' + look.hc + ',' + (look.shoe ? 1 : 0) + ',' + legs + ',' + (arms ? 1 : 0) + ',' + face;
+  if (AV_CACHE[key]) return AV_CACHE[key];
+  var cv = document.createElement('canvas'); cv.width = 8; cv.height = 15;
+  var c = cv.getContext('2d');
+  var pal = { s: SKINS[look.skin] || SKINS[0], S: SHIRTS[look.shirt] || SHIRTS[0], E: '#000000', P: '#283050', F: look.shoe ? '#e83020' : '#181818',
+    h: HAIRC[look.hc] || HAIRC[0], k: '#2a1a10', w: '#fcfcfc', y: '#f8d800', r: '#d82800' };
+  function put(rows, off){
+    for (var j = 0; j < rows.length; j++){
+      for (var i = 0; i < 8; i++){
+        var ch = rows[j].charAt(i);
+        if (ch && ch !== '.' && pal[ch]){ c.fillStyle = pal[ch]; c.fillRect(face > 0 ? i : 7 - i, j + off, 1, 1); }
+      }
+    }
+  }
+  put(arms ? BODY_UP : BODY, 3);
+  put(LEGS[legs] || LEGS[0], 12);
+  put((HATS[look.hat] || HATS[0]).r, 0);
+  if (arms) put(ARMS, 0);
+  AV_CACHE[key] = cv;
+  return cv;
+}
+function drawAvatar(c, look, x, y, face, legs, arms, spin){
+  var img = avatarImg(look, legs, arms, face);
+  if (spin){
+    c.save(); c.translate(Math.round(x), Math.round(y) - 7); c.rotate(spin); c.drawImage(img, -4, -8); c.restore();
+  } else c.drawImage(img, Math.round(x) - 4, Math.round(y) - 15);
+}
+function legFrame(air, vx, anim){ if (air) return 1; if (vx) return Math.floor(anim) % 2 ? 1 : 2; return 0; }
+
+/* ============================================================
+   CANVAS VIEW: pixel art drawn in game units, text drawn in real pixels so it stays sharp
+============================================================ */
+function makeView(cv){ return { cv: cv, c: cv.getContext('2d'), S: 1, dpr: 1 }; }
+function fitView(v, boxW, boxH){
+  var S = Math.max(0.5, Math.min(boxW / W, boxH / H)), dpr = Math.min(window.devicePixelRatio || 1, 3);
+  var cw = Math.floor(W * S), ch = Math.floor(H * S);
+  v.cv.style.width = cw + 'px'; v.cv.style.height = ch + 'px';
+  v.cv.width = Math.floor(cw * dpr); v.cv.height = Math.floor(ch * dpr);
+  v.S = cw / W; v.dpr = dpr; v.cw = cw; v.ch = ch;
+  v.c.imageSmoothingEnabled = false;
+}
+function gameXf(v){ v.c.setTransform(v.S * v.dpr, 0, 0, v.S * v.dpr, 0, 0); v.c.imageSmoothingEnabled = false; }
+function vText(v, s, gx, gy, col, size){
+  var c = v.c;
+  c.setTransform(v.dpr, 0, 0, v.dpr, 0, 0);
+  c.font = size + 'px "Press Start 2P", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  var x = gx * v.S, y = gy * v.S;
+  c.lineWidth = Math.max(3, size / 3); c.strokeStyle = '#000'; c.lineJoin = 'round';
+  c.strokeText(s, x, y); c.fillStyle = col || '#fcfcfc'; c.fillText(s, x, y);
+  gameXf(v);
+}
+function nameSize(v){ return Math.max(8, Math.round(v.S * 2.6)); }
+
+/* ============================================================
+   EFFECTS: sparks, popups and cheers
+============================================================ */
+function burst(list, x, y, n, cols, sp, g, life){
+  for (var i = 0; i < n; i++){
+    var a = i / n * 6.28 + rand(-0.2, 0.2), s = sp * rand(0.5, 1);
+    list.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: g || 0, life: (life || 0.5) * rand(0.6, 1), c: cols[i % cols.length] });
+  }
+}
+function addPop(list, x, y, text, col, big){ list.push({ x: x, y: y, text: text, col: col || '#fcfcfc', life: big ? 1.8 : 1.1, big: !!big }); }
+/* a big cheer whose color keeps changing */
+function addCheer(list, x, y, text){ list.push({ x: x, y: y, text: text || pick(CHEERS), col: '#fcfcfc', life: 1.6, big: true, rainbow: true, seed: Math.floor(rand(0, 7)) }); }
+function fireworks(parts, n){
+  for (var i = 0; i < n; i++) burst(parts, rand(40, 216), rand(16, 50), 16, [pick(CHEER_COLS), pick(CHEER_COLS), '#fcfcfc'], 45, 25, 1.1);
+}
+function stepFx(parts, pops, dt){
+  var i;
+  for (i = parts.length - 1; i >= 0; i--){
+    var p = parts[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.life -= dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+  for (i = pops.length - 1; i >= 0; i--){ pops[i].y -= 12 * dt; pops[i].life -= dt; if (pops[i].life <= 0) pops.splice(i, 1); }
+}
+function drawParts(c, parts){
+  for (var i = 0; i < parts.length; i++){ c.fillStyle = parts[i].c; c.fillRect(Math.round(parts[i].x), Math.round(parts[i].y), 1, 1); }
+}
+function drawPops(v, pops){
+  for (var i = 0; i < pops.length; i++){
+    var p = pops[i], sz = nameSize(v) * (p.big ? 1.8 : 1.1);
+    v.c.globalAlpha = Math.min(1, p.life * 2);
+    vText(v, p.text, clamp(p.x, 30, W - 30), p.y, p.rainbow ? CHEER_COLS[Math.floor(p.life * 12 + p.seed) % CHEER_COLS.length] : p.col, Math.round(sz));
+    v.c.globalAlpha = 1;
+  }
+}
+
+/* ============================================================
+   SHARED COURT PIECES: rim and net, ball, power meter, birds and their poop
+============================================================ */
+function drawBoardRim(c, g, active, t, netT){
+  var k;
+  c.fillStyle = '#000'; c.fillRect(g.bx - 1, g.y - 21, 5, 28);
+  c.fillStyle = active ? '#fcfcfc' : '#9a9aa8'; c.fillRect(g.bx, g.y - 20, 3, 26);
+  c.fillStyle = active ? '#f83800' : '#606070'; c.fillRect(g.bx + 1, g.y - 8, 1, 6);
+  drawNet(c, g.rl, g.rr, g.y, netT, active ? 'rgba(252,252,252,.9)' : 'rgba(200,200,215,.4)');
+  c.fillStyle = '#000'; c.fillRect(Math.round(g.rl) - 1, g.y - 1, RIM_W + 3, 4);
+  c.fillStyle = active ? (Math.floor(t * 4) % 2 ? '#f8d800' : '#f83800') : '#707078';
+  c.fillRect(Math.round(g.rl), g.y, RIM_W + 1, 2);
+}
+function drawNet(c, rl, rr, yy, netT, col){
+  var wob = netT > 0 ? Math.sin(netT * 40) * 1.5 : 0;
+  c.strokeStyle = col; c.lineWidth = 1;
+  c.beginPath();
+  for (var k = 0; k <= 4; k++){
+    var tx = rl + (rr - rl) * k / 4, bxn = rl + 4 + (rr - rl - 8) * k / 4 + wob;
+    c.moveTo(tx, yy + 1); c.lineTo(bxn, yy + 11);
+  }
+  c.moveTo(rl + 2 + wob * 0.5, yy + 5); c.lineTo(rr - 2 + wob * 0.5, yy + 5);
+  c.moveTo(rl + 4 + wob, yy + 10); c.lineTo(rr - 4 + wob, yy + 10);
+  c.stroke();
+}
+function drawBall(c, x, y, rot, k){
+  c.save(); c.translate(Math.round(x), Math.round(y));
+  if (rot) c.rotate(Math.round(rot / (Math.PI / 2)) * Math.PI / 2);
+  c.drawImage(BALL_IMGS[k] || BALL_IMGS[0], -4, -4);
+  c.restore();
+}
+function drawMeter(c, x, y, p){
+  var ox = Math.round(x - 4), oy = Math.round(y - 12), mx = ox - 7, my = oy - 18, hgt = Math.round(p * 20);
+  c.fillStyle = '#000'; c.fillRect(mx - 1, my - 1, 5, 22);
+  c.fillStyle = '#404040'; c.fillRect(mx, my, 3, 20);
+  c.fillStyle = p < 0.5 ? '#00c800' : (p < 0.8 ? '#f8b800' : '#f83800');
+  c.fillRect(mx, my + 20 - hgt, 3, hgt);
+}
+function drawBirds(c, list){
+  for (var i = 0; i < list.length; i++){
+    var bd = list[i], fr = bd.k.fr[Math.floor(bd.f) % 2], img = bd.dir > 0 ? fr.r : fr.l;
+    c.drawImage(img, Math.round(bd.x - 7), Math.round(bd.y - (img.height > 8 ? 1 : 0)));
+  }
+}
+function drawPoops(c, poops, splats){
+  var i, x, y;
+  for (i = 0; i < poops.length; i++){
+    x = Math.round(poops[i].x); y = Math.round(poops[i].y);
+    c.fillStyle = '#000'; c.fillRect(x - 2, y - 2, 5, 5);
+    c.fillStyle = '#f8f8f8'; c.fillRect(x - 1, y - 1, 3, 3);
+    c.fillStyle = '#4a3418'; c.fillRect(x, y, 1, 1);
+  }
+  for (i = 0; i < splats.length; i++){
+    x = Math.round(splats[i].x); y = Math.round(splats[i].y);
+    c.globalAlpha = Math.min(1, splats[i].t);
+    c.fillStyle = '#f8f8f8'; c.fillRect(x - 3, y - 1, 7, 1); c.fillRect(x - 1, y - 2, 3, 1);
+    c.fillStyle = '#4a3418'; c.fillRect(x, y - 1, 1, 1);
+    c.globalAlpha = 1;
+  }
+}
+
+/* the world every board shares: score, clock, effects, birds */
+function newWorld(){
+  return { t: 0, score: 0, left: 60, done: false, clearText: "TIME'S UP!", parts: [], pops: [], birds: [], poops: [], splats: [],
+    birdT: rand(5, 8), shake: 0, rimSnd: 0, netT: 0, netH: -1, meter: null, plats: [FLOOR_PLAT], sky: false, shoe: false, jumpMul: 1, magic: null };
+}
+
+/* ============================================================
+   THE PLAYER: run, jump, double jump (triple with the Air Jordann's on the clouds)
+============================================================ */
+function newHero(x){
+  return { x: x, y: FLOOR, vx: 0, vy: 0, face: 1, ground: 'floor', anim: 0, air2: true, air3: false, drop: 0, flipT: 0,
+    jumpHeld: false, inv: 0, hurtT: 0, dp: 0 };
+}
+function findPlat(plats, id){ for (var i = 0; i < plats.length; i++) if (plats[i].id === id) return plats[i]; return null; }
+function stepHero(G, p, dt, mv){
+  p.flipT = Math.max(0, p.flipT - dt); p.drop = Math.max(0, p.drop - dt);
+  p.inv = Math.max(0, p.inv - dt); p.hurtT = Math.max(0, p.hurtT - dt);
+  if (p.hurtT <= 0){ p.vx = mv * RUN; if (mv) p.face = mv; }
+  if (p.ground && p.vx) p.anim += dt * 10;
+  p.x = clamp(p.x + p.vx * dt, 4, W - 4);
+  if (p.ground){
+    var g = findPlat(G.plats, p.ground);
+    if (!g || p.x + 3 <= g.x1 || p.x - 3 >= g.x2){ p.ground = null; p.vy = 0; } else p.y = g.y;
+  }
+  if (!p.ground){
+    p.vy = Math.min(p.vy + GRAV * (G.sky ? 0.88 : 1) * dt, 400);
+    if (!p.jumpHeld && p.vy < -120) p.vy = -120;                       // let go of jump early = shorter hop
+    var py = p.y; p.y += p.vy * dt;
+    if (p.vy >= 0){
+      var best = null;
+      for (var i = 0; i < G.plats.length; i++){
+        var q = G.plats[i];
+        if ((q.floor || p.drop <= 0) && py <= q.y + 0.5 && p.y >= q.y && p.x + 3 > q.x1 && p.x - 3 < q.x2 && (!best || q.y < best.y)) best = q;
+      }
+      if (best && G.sky && p.vy > 170){
+        // clouds are springy: a hard landing bounces you back up a little
+        p.y = best.y; p.vy = -p.vy * 0.42; p.air2 = true; p.air3 = G.shoe;
+        tone(240, 0.1, 'sine', 0.04, 160);
+      } else if (best){ p.y = best.y; p.vy = 0; p.ground = best.id; p.air2 = true; p.air3 = G.shoe; }
+    }
+    if (p.y < 14){ p.y = 14; if (p.vy < 0) p.vy = 0; }
+  }
+  if (p.ground) p.lastG = p.ground;
+}
+function heroJump(G, p){
+  var M = G.magic;
+  if (G.hang && G.hang()) return;
+  if (M && M.noJump && !p.ground) return;                              // after a magic shot you just fall
+  if (p.ground){ p.ground = null; p.vy = -JUMP_V * G.jumpMul; p.jumpHeld = true; sfx.jump(); return; }
+  if (M) p.air2 = true;                                                 // magic round: unlimited jumps
+  if (!p.air2 && p.air3){ p.air3 = false; p.air2 = true; }              // Air Jordann's on the clouds: a third jump
+  if (!p.air2) return;
+  p.air2 = false; p.vy = -JUMP_V * 0.85; p.jumpHeld = true; p.flipT = M ? 0 : 0.3;
+  burst(G.parts, p.x, p.y - 6, 6, M ? MAGIC_COLS : ['#fcfcfc', '#9cd8fc'], 30, 0, 0.3);
+  sfx.jump2();
+}
+function heroDrop(p){ if (p.ground && p.ground !== 'floor'){ p.ground = null; p.drop = 0.22; p.vy = 20; } }
+function hurtHero(G, p, fromX, text){
+  if (p.inv > 0) return false;
+  p.inv = 1.5; p.hurtT = 0.3; p.vy = -120; p.ground = null; p.vx = (p.x < fromX ? -1 : 1) * 70;
+  G.meter = null;
+  addPop(G.pops, p.x, p.y - 24, text, '#f86060');
+  sfx.hurt();
+  return true;
+}
+function heroHit(p, x, y, hw, hh){ return Math.abs(p.x - x) < hw + 3 && p.y > y - hh && p.y - 12 < y + hh; }
+function drawHero(c, look, p, arms){
+  if (p.inv > 0 && Math.floor(p.inv * 14) % 2) return;
+  var spin = p.flipT > 0 ? -p.face * (1 - p.flipT / 0.3) * Math.PI * 2 : 0;
+  drawAvatar(c, look, p.x, p.y, p.face, legFrame(!p.ground, p.vx, p.anim), arms, spin);
+}
+
+/* ============================================================
+   BIRDS: they fly by, poop, and dive-bomb whoever bonks them with a ball
+============================================================ */
+function spawnBird(list){
+  var dir = Math.random() < 0.5 ? 1 : -1;
+  list.push({ k: pick(BIRDS), dir: dir, x: dir > 0 ? -14 : W + 14, y0: rand(14, 70), y: 0, sp: rand(30, 50), f: rand(0, 2), bob: rand(0, 6.28),
+    hit: 0, mode: 'fly', vx: 0, vy: 0, t: 0, poopT: rand(1.5, 4) });
+}
+function birdBonk(G, b, bd){
+  var cx = bd.x, cy = bd.y + 3, dx = b.x - cx, dy = b.y - cy, d = hyp(dx, dy);
+  if (d > 8 || d === 0 || bd.hit > 0) return;
+  var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
+  if (vn < 0){ b.vx -= 1.7 * vn * nx; b.vy -= 1.7 * vn * ny; }
+  b.x = cx + nx * 8.5; b.y = cy + ny * 8.5;
+  bd.hit = 0.5;
+  if (b.live) b.birdHit = true;
+  burst(G.parts, cx, cy, 10, [bd.k.col, '#fcfcfc'], 45, 40, 0.8);
+  tone(1500, 0.08, 'square', 0.04, -700); tone(1100, 0.08, 'square', 0.04, 500, 0.07);
+  if (bd.mode === 'fly'){                                                // an angry bird dive-bombs the player
+    bd.mode = 'dive'; bd.t = 0; bd.vx = bd.dir * bd.sp; bd.vy = 0;
+    addPop(G.pops, cx, cy - 8, 'SQUAWK!', '#f86060');
+    tone(900, 0.3, 'triangle', 0.04, -600);
+  }
+}
+/* onStomp(bird) when you land on one; onHurt(x, text) when a diving bird or a dropping gets you */
+function stepBirds(G, p, dt, onStomp, onHurt){
+  var i, j;
+  G.birdT -= dt;
+  if (G.birdT <= 0){ spawnBird(G.birds); G.birdT = rand(6, 10); sfx.tweet(); }
+  for (i = G.birds.length - 1; i >= 0; i--){
+    var bd = G.birds[i];
+    bd.f += dt * (bd.mode === 'fly' ? 7 : 16); bd.hit = Math.max(0, bd.hit - dt); bd.t += dt;
+    if (bd.mode === 'fly'){
+      bd.x += bd.dir * bd.sp * dt; bd.bob += dt * 3; bd.y = bd.y0 + Math.sin(bd.bob) * 4;
+      bd.poopT -= dt;
+      var overhead = Math.abs(bd.x - p.x) < 14 && bd.y < p.y - 16;
+      if (bd.poopT <= 0 || (overhead && bd.poopT < 2.5)){              // birds poop now and then, and like to do it right over you
+        G.poops.push({ x: bd.x, y: bd.y + 6, vy: 20 }); bd.poopT = rand(3, 6);
+        tone(300, 0.08, 'square', 0.03, -200);
+      }
+    } else if (bd.mode === 'dive'){                                     // steers at the player for a few seconds
+      var ddx = p.x - bd.x, ddy = (p.y - 6) - (bd.y + 3), dd = hyp(ddx, ddy) || 1;
+      bd.vx += (ddx / dd * 90 - bd.vx) * dt * 2.5; bd.vy += (ddy / dd * 90 - bd.vy) * dt * 2.5;
+      bd.x += bd.vx * dt; bd.y += bd.vy * dt;
+      if (Math.abs(bd.vx) > 5) bd.dir = sgn(bd.vx);
+      if (bd.t > 3) bd.mode = 'flee';
+    } else { bd.x += bd.dir * 70 * dt; bd.y -= 60 * dt; }              // flies up and away
+    if (bd.mode !== 'flee' && heroHit(p, bd.x, bd.y + 3, 5, 4)){
+      if (p.vy > 0 && p.y - (bd.y + 3) < 4){                            // landed on top of it
+        onStomp(bd);
+        p.vy = -190; p.ground = null; p.air2 = true; p.jumpHeld = true;
+        burst(G.parts, bd.x, bd.y + 3, 12, [bd.k.col, '#fcfcfc'], 60);
+        sfx.squish();
+        bd.mode = 'flee'; bd.dir = p.x < bd.x ? 1 : -1;
+      } else if (bd.mode === 'dive'){
+        onHurt(bd.x, 'OUCH!'); bd.mode = 'flee';
+      }
+    }
+    if (bd.x < -20 || bd.x > W + 20 || bd.y < -20) G.birds.splice(i, 1);
+  }
+  for (i = G.poops.length - 1; i >= 0; i--){
+    var pp = G.poops[i], py = pp.y, gone = false;
+    pp.vy = Math.min(160, pp.vy + 260 * dt); pp.y += pp.vy * dt;
+    if (Math.abs(pp.x - p.x) < 5 && pp.y > p.y - 13 && pp.y < p.y + 1){ onHurt(pp.x, 'SPLAT!'); gone = true; }
+    if (!gone){
+      for (j = 0; j < G.plats.length; j++){
+        var q = G.plats[j];
+        if (py <= q.y && pp.y >= q.y && pp.x > q.x1 && pp.x < q.x2){ G.splats.push({ x: pp.x, y: q.y, t: 1.5 }); gone = true; break; }
+      }
+    }
+    if (gone || pp.y > H) G.poops.splice(i, 1);
+  }
+  for (i = G.splats.length - 1; i >= 0; i--){ G.splats[i].t -= dt; if (G.splats[i].t <= 0) G.splats.splice(i, 1); }
+}
+
+/* ============================================================
+   BOARD 1: THE GYM — the Teacherbase Hoops shot at one hoop on the right
+============================================================ */
+var GYM_HOOP = { i: 0, side: 1, bx: W - 12, rl: W - 13 - RIM_W, rr: W - 13, y: FLOOR - 50, base: FLOOR };
+var GYM_HX = (GYM_HOOP.rl + GYM_HOOP.rr) / 2;
+var LONG_SHOT = 110, THREE_X = Math.round(GYM_HX - LONG_SHOT), FT_X = Math.round(GYM_HX - 75);
+var GYM_SECS = 60;
+// 3x5 lights on the scoreboard
+var DIGITS = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001',
+              '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111'];
+function drawDigits(c, s, x, y, col){
+  c.fillStyle = col;
+  for (var n = 0; n < s.length; n++){
+    var ch = s.charAt(n);
+    if (ch === ':'){ c.fillRect(x, y + 1, 1, 1); c.fillRect(x, y + 3, 1, 1); x += 2; continue; }
+    var bits = DIGITS[+ch];
+    if (bits) for (var k = 0; k < 15; k++) if (bits.charAt(k) === '1') c.fillRect(x + k % 3, y + Math.floor(k / 3), 1, 1);
+    x += 4;
+  }
+}
+var GYM_BG = null;
+function gymBg(){
+  if (GYM_BG) return GYM_BG;
+  var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var c = cv.getContext('2d'), i, j, seed = 7;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  var PEN = ['#d82800', '#f8d800', '#2858f0', '#38b818', '#f87800', '#8030d0'];
+  // upper wall, rafters and the lights
+  c.fillStyle = '#23284a'; c.fillRect(0, 0, W, 50);
+  c.fillStyle = '#181c34'; c.fillRect(0, 0, W, 4);
+  for (i = 16; i < W; i += 32) c.fillRect(i, 0, 3, 46);
+  c.fillStyle = '#fff6c0'; for (i = 0; i < 8; i++) c.fillRect(6 + i * 32, 4, 6, 2);
+  // high windows (the middle is where the scoreboard hangs)
+  [12, 54, 182, 224].forEach(function(wx){
+    c.fillStyle = '#000'; c.fillRect(wx - 1, 8, 22, 16);
+    c.fillStyle = '#7aa8e8'; c.fillRect(wx, 9, 20, 14);
+    c.fillStyle = '#a8ccf8'; c.fillRect(wx, 9, 20, 4);
+    c.fillStyle = '#2a3a6a'; c.fillRect(wx + 9, 9, 2, 14); c.fillRect(wx, 15, 20, 1);
+  });
+  // pennants on a string
+  c.fillStyle = '#e0e0e0'; c.fillRect(0, 31, W, 1);
+  for (i = 0; i < 16; i++){ c.fillStyle = PEN[i % PEN.length]; for (j = 0; j < 6; j++) c.fillRect(i * 16 + 2 + j, 32 + j, 12 - 2 * j, 1); }
+  // the bleachers, full of fans
+  for (j = 0; j < 8; j++){
+    var y = 48 + j * 8;
+    c.fillStyle = '#000'; c.fillRect(0, y, W, 1);
+    c.fillStyle = j % 2 ? '#8c8ca0' : '#9c9cb0'; c.fillRect(0, y + 1, W, 3);
+    c.fillStyle = '#4a4a60'; c.fillRect(0, y + 4, W, 4);
+    for (i = 2; i < W - 3; i += 5 + Math.floor(r() * 4)){
+      if (r() < 0.25) continue;
+      c.fillStyle = PEN[Math.floor(r() * PEN.length)]; c.fillRect(i, y - 3, 3, 4);
+      c.fillStyle = SKINS[Math.floor(r() * SKINS.length)]; c.fillRect(i, y - 6, 3, 3);
+      c.fillStyle = HAIRC[Math.floor(r() * 3)]; c.fillRect(i, y - 6, 3, 1);
+    }
+  }
+  // the stands sit in the shadows so the ball and the birds stand out
+  c.fillStyle = 'rgba(14,16,36,.45)'; c.fillRect(0, 40, W, 72);
+  // padded wall behind the court
+  c.fillStyle = '#000'; c.fillRect(0, 112, W, 1);
+  c.fillStyle = '#2040a8'; c.fillRect(0, 113, W, 5);
+  c.fillStyle = '#fcfcfc'; c.fillRect(0, 115, W, 1);
+  // the hardwood
+  c.fillStyle = '#d89850'; c.fillRect(0, 118, W, FLOOR - 118);
+  c.fillStyle = '#c48840'; for (j = 120; j < FLOOR; j += 3) c.fillRect(0, j, W, 1);
+  c.fillStyle = '#b07830'; for (i = 0; i < 70; i++) c.fillRect(Math.floor(r() * W), 118 + Math.floor(r() * (FLOOR - 118)), 1, 2);
+  // the key, from the free throw line to the baseline
+  c.fillStyle = '#b83a28'; c.fillRect(FT_X, 118, W - FT_X, FLOOR - 118);
+  c.fillStyle = '#a03020'; for (j = 120; j < FLOOR; j += 3) c.fillRect(FT_X, j, W - FT_X, 1);
+  // the lines: sideline, free throw, three point, baseline, half court circle at the left
+  c.fillStyle = '#fcfcfc';
+  c.fillRect(0, 118, W, 1);
+  c.fillRect(FT_X, 118, 1, FLOOR - 118); c.fillRect(THREE_X, 118, 1, FLOOR - 118); c.fillRect(W - 4, 118, 1, FLOOR - 118);
+  c.fillRect(2, 118, 1, FLOOR - 118);
+  for (i = -48; i <= 48; i++){ var a = i / 48 * Math.PI / 2; c.fillRect(Math.round(2 + Math.cos(a) * 24), Math.round(125 + Math.sin(a) * 6), 1, 1); }
+  // front edge of the floor
+  c.fillStyle = '#000'; c.fillRect(0, FLOOR, W, 1);
+  c.fillStyle = '#7a4a20'; c.fillRect(0, FLOOR + 1, W, H - FLOOR - 1);
+  c.fillStyle = '#5a3414'; for (i = 0; i < W; i += 16) c.fillRect(i, FLOOR + 1, 1, H - FLOOR - 1);
+  c.fillStyle = '#9a6a38'; c.fillRect(0, FLOOR + 1, W, 1);
+  GYM_BG = cv;
+  return cv;
+}
+
+function GymGame(){
+  var G = newWorld(), hp = GYM_HOOP, p = newHero(40);
+  G.left = GYM_SECS; G.hearts = 3; G.streak = 0; G.made = 0; G.noBallT = 0; G.hero = p; G.look = LOOK;
+  var balls = [3, 4, 5].map(function(k, i){ return { k: k, x: 40 + i * 16, y: FLOOR - BR, vx: 0, vy: 0, rot: 0, free: true, live: false, noPick: 0, rest: 0 }; });
+  p.ball = balls[0]; balls[0].free = false;
+  G.balls = balls;
+
+  function addScore(n, x, y, label){
+    G.score = Math.max(0, G.score + n);
+    addPop(G.pops, x, y, '+' + n, '#fcfc78');
+    if (label) addPop(G.pops, x, y - 10, label, '#fcfcfc');
+  }
+  function shoot(){
+    var b = p.ball, v = 165 + G.meter.p * 105;
+    b.free = true; b.live = true; b.scored = false; b.from = p.x; b.noPick = 0.6; b.rest = 0; b.ret = false;
+    b.shot = true; b.birdHit = false;                                    // a fresh shot: it either goes in or counts as a miss
+    b.x = p.x + p.face * 2; b.y = p.y - 17;
+    b.vx = p.face * v * Math.cos(ANG); b.vy = -v * Math.sin(ANG);
+    p.ball = null; G.meter = null; G.noBallT = 0; sfx.dribble();
+  }
+  function grab(b){ p.ball = b; b.free = false; b.live = false; G.meter = null; G.noBallT = 0; sfx.dribble(); }
+  function loseHeart(){
+    G.hearts--;
+    if (G.hearts <= 0 && !G.done){ G.meter = null; G.clearText = 'OUT OF HEARTS!'; G.done = true; sfx.over(); }
+  }
+  function onHurt(x, text){ if (hurtHero(G, p, x, text)) loseHeart(); }
+  function onStomp(bd){ addScore(5, bd.x, bd.y - 6, 'STOMP!'); }
+
+  function stepBall(b, h){
+    var py = b.y, i;
+    b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR;
+    if (b.live && !b.scored && py < hp.y && b.y >= hp.y && b.x > hp.rl && b.x < hp.rr){
+      b.scored = true; b.shot = false; b.ret = true; b.vx *= 0.3; G.netT = 0.5; G.made++;
+      // 2 for a basket, 3 from behind the line, 5 each once you're on fire (3 in a row), 10 if it bounced off a bird and went in
+      var long = Math.abs(b.from - GYM_HX) > LONG_SHOT, onFire = G.streak >= 3;
+      var pts = long ? 3 : 2, label = long ? 'THREE!' : pick(['SWISH!', 'BUCKET!', 'NOTHIN NET!']);
+      if (onFire){ pts = 5; label = 'ON FIRE!'; }
+      if (b.birdHit){ pts = 10; label = 'BIRDIE BANK!'; }
+      addScore(pts, GYM_HX, hp.y - 12, label);
+      G.streak++;
+      if (G.streak === 3){ addPop(G.pops, GYM_HX, hp.y - 34, 'SHOOTING STREAK!', '#f87800'); sfx.bonus(); }
+      G.left += 3;
+      addPop(G.pops, W / 2, 30, '+3 SEC', '#58f858');
+      burst(G.parts, GYM_HX, hp.y + 4, 14, ['#f8d800', '#fcfcfc', '#58f878'], 60, 40, 0.8);
+      sfx.swish();
+    }
+    if (b.live) for (i = 0; i < G.birds.length; i++) birdBonk(G, b, G.birds[i]);
+    var posts = [hp.rl, hp.rr];
+    for (i = 0; i < 2; i++){
+      var px = posts[i], dx = b.x - px, dy = b.y - hp.y, d = hyp(dx, dy);
+      if (d < BR + 1 && d > 0){
+        var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
+        b.x = px + nx * (BR + 1); b.y = hp.y + ny * (BR + 1);
+        if (vn < 0){ b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; } }
+      }
+    }
+    if (b.y > hp.y - 20 - BR && b.y < hp.y + 6 + BR && b.x + BR > hp.bx && b.x < hp.bx + 2 && b.vx > 0){ b.x = hp.bx - BR; b.vx = -b.vx * 0.55; sfx.board(); }
+    if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
+    if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
+    if (b.vy >= 0){
+      for (i = 0; i < G.plats.length; i++){
+        var q = G.plats[i];
+        if (py + BR <= q.y + 0.5 && b.y + BR >= q.y && b.x > q.x1 && b.x < q.x2){
+          b.y = q.y - BR; b.live = false;
+          if (b.shot){                                                  // landed without going in: a miss ends the streak
+            b.shot = false;
+            if (G.streak >= 3) addPop(G.pops, p.x, p.y - 24, 'STREAK OVER', '#f86060');
+            G.streak = 0;
+          }
+          if (b.ret){ b.ret = false; b.vx = (p.x < b.x ? -1 : 1) * rand(40, 60); }   // made balls roll back toward you
+          if (b.vy > 25){ sfx.bounce(b.vy / 3000); b.vy = -b.vy * 0.55; b.vx *= 0.85; }
+          else { b.vy = 0; b.vx *= Math.pow(0.35, h); if (Math.abs(b.vx) < 2) b.vx = 0; }
+          break;
+        }
+      }
+    }
+    b.rest = b.vy === 0 && b.vx === 0 ? b.rest + h : 0;
+  }
+
+  G.update = function(dt){
+    var i, b;
+    G.t += dt; G.left -= dt; G.netT = Math.max(0, G.netT - dt); G.rimSnd -= dt;
+    var mv = (G.meter && p.ground) ? 0 : (inp.l ? -1 : (inp.r ? 1 : 0));
+    p.jumpHeld = inp.a || inp.u;
+    stepHero(G, p, dt, mv);
+    if (G.meter){
+      G.meter.p += G.meter.dir * dt / (p.ground ? 1.4 : 0.55);
+      if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
+    }
+    if (p.ball){
+      b = p.ball;
+      var before = Math.floor(p.dp / Math.PI);
+      p.dp += dt * (p.vx ? 9 : 6);
+      if (G.meter || !p.ground){ b.x = p.x + p.face * 2; b.y = p.y - 17; }
+      else {
+        if (Math.floor(p.dp / Math.PI) !== before) sfx.dribble();
+        b.x = p.x + p.face * 6; b.y = p.y - BR - Math.abs(Math.sin(p.dp)) * 8;
+        b.rot += dt * p.face * 4;
+      }
+    } else {
+      G.noBallT += dt;
+      if (p.ground) for (i = 0; i < balls.length; i++){
+        b = balls[i];
+        if (b.free && !b.live && b.noPick <= 0 && b.vy === 0 && Math.abs(b.x - p.x) < 8 && Math.abs(b.y + BR - p.y) < 4){ grab(b); break; }
+      }
+      if (!p.ball && G.noBallT > 3.5){                                  // a ball you can't reach pops back to you
+        var loose = balls.filter(function(x){ return x.free && !x.live; }).sort(function(a, c){ return c.rest - a.rest; })[0];
+        if (loose){ burst(G.parts, loose.x, loose.y, 8, ['#fcfcfc'], 40, 0, 0.4); grab(loose); addPop(G.pops, p.x, p.y - 22, 'NEW BALL', '#fcfcfc'); }
+      }
+    }
+    stepBirds(G, p, dt, onStomp, onHurt);
+    for (i = 0; i < balls.length; i++){
+      b = balls[i];
+      b.noPick = Math.max(0, b.noPick - dt);
+      if (b.free) for (var s = 0; s < 3; s++) stepBall(b, dt / 3);
+      if (b.live && G.streak >= 3) G.parts.push({ x: b.x + rand(-2, 2), y: b.y + rand(-2, 2), vx: rand(-10, 10), vy: rand(-20, 0), g: 0, life: 0.35, c: pick(['#f83800', '#f87800', '#f8d800']) });
+    }
+    stepFx(G.parts, G.pops, dt);
+    if (G.left <= 0){ G.left = 0; G.meter = null; G.done = true; }
+  };
+
+  G.draw = function(v){
+    gameXf(v);
+    var c = v.c, y = hp.y, bx = hp.bx, i;
+    c.drawImage(gymBg(), 0, 0);
+    // the scoreboard: points and the clock
+    c.fillStyle = '#000'; c.fillRect(100, 5, 56, 22);
+    c.fillStyle = '#5a5a6a'; c.fillRect(101, 6, 54, 20);
+    c.fillStyle = '#101010'; c.fillRect(103, 8, 50, 16);
+    var sc = String(Math.min(999, G.score)); while (sc.length < 3) sc = '0' + sc;
+    drawDigits(c, sc, 106, 13, '#f83800');
+    drawDigits(c, fmt(G.left), 133, 13, '#f8d800');
+    c.fillStyle = '#58f858'; for (i = 0; i < G.hearts; i++) c.fillRect(126 + i * 2, 21, 1, 1);
+    // the hoop: stanchion, glass backboard, rim and net
+    c.fillStyle = '#000'; c.fillRect(bx, y + 6, 4, hp.base - y - 6);
+    c.fillStyle = '#a4a4b4'; c.fillRect(bx + 1, y + 6, 2, hp.base - y - 6);
+    c.fillStyle = '#000'; c.fillRect(bx - 3, hp.base - 9, 11, 9);
+    c.fillStyle = '#2040a8'; c.fillRect(bx - 2, hp.base - 8, 9, 8);
+    c.fillStyle = '#4868d0'; c.fillRect(bx - 2, hp.base - 8, 9, 1);
+    c.fillStyle = '#000'; c.fillRect(bx - 1, y - 21, 5, 28);
+    c.fillStyle = '#fcfcfc'; c.fillRect(bx, y - 20, 3, 26);
+    c.fillStyle = '#f83800'; c.fillRect(bx + 1, y - 8, 1, 6);
+    drawNet(c, hp.rl, hp.rr, y, G.netT, 'rgba(252,252,252,.85)');
+    c.fillStyle = '#000'; c.fillRect(Math.round(hp.rl) - 1, y - 1, RIM_W + 3, 4);
+    c.fillStyle = '#f83800'; c.fillRect(Math.round(hp.rl), y, RIM_W + 1, 2);
+    drawBirds(c, G.birds);
+    drawHero(c, G.look, p, !!p.ball && (!!G.meter || !p.ground));
+    if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
+    for (i = 0; i < balls.length; i++) drawBall(c, balls[i].x, balls[i].y, balls[i].rot, balls[i].k);
+    drawPoops(c, G.poops, G.splats);
+    for (i = 0; i < 3; i++){ c.globalAlpha = i < G.hearts ? 1 : 0.25; c.drawImage(HEART, 4 + i * 9, H - 9); }
+    c.globalAlpha = 1;
+    drawParts(c, G.parts);
+    drawPops(v, G.pops);
+  };
+  G.press = function(k){
+    if (k === 'jump') heroJump(G, p);
+    else if (k === 'drop') heroDrop(p);
+    else if (k === 'shoot'){
+      if (!p.ball){ addPop(G.pops, p.x, p.y - 22, 'GET A BALL', '#fcfcfc'); return; }
+      var dx = GYM_HX - p.x;
+      if (Math.abs(dx) < 14){ addPop(G.pops, p.x, p.y - 22, 'TOO CLOSE', '#fcfcfc'); return; }
+      G.meter = { p: 0, dir: 1 }; p.face = dx > 0 ? 1 : -1;
+    }
+  };
+  G.release = function(k){ if (k === 'shoot' && G.meter && p.ball) shoot(); };
+  G.hud = function(){ return { balls: -1, info: G.streak >= 3 ? 'ON FIRE!' : 'BASKETS ' + G.made }; };
+  return G;
+}
+
+/* ============================================================
+   BOARDS 2 AND 3: PALM COURT HOOPS on the beach, and the cloud court
+============================================================ */
+var BEACH_BG = (function(){
+  var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var c = cv.getContext('2d'), i;
+  var sky = ['#140c34', '#1e1048', '#2c1458', '#40186a', '#5a1c72', '#7a2274', '#9c2c6e', '#be3c62', '#de5652', '#f47a44', '#f8a040'];
+  var skyH = 104, bh = skyH / sky.length;
+  for (i = 0; i < sky.length; i++){ c.fillStyle = sky[i]; c.fillRect(0, Math.floor(i * bh), W, Math.ceil(bh) + 1); }
+  var seed = 11;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  c.fillStyle = '#fcfcfc';
+  for (i = 0; i < 45; i++){ c.globalAlpha = 0.35 + r() * 0.65; c.fillRect(Math.floor(r() * W), Math.floor(r() * 46), 1, 1); }
+  c.globalAlpha = 1;
+  c.fillStyle = '#fcd060'; c.beginPath(); c.arc(132, 104, 26, 0, Math.PI * 2); c.fill();
+  for (i = 0; i < 5; i++){ c.fillStyle = '#e8604e'; c.fillRect(100, 86 + i * 4, 64, i < 2 ? 1 : 2); }
+  c.fillStyle = '#2a1238';
+  c.fillRect(20, 100, 46, 4); c.fillRect(28, 97, 26, 3); c.fillRect(36, 95, 10, 2);
+  c.fillRect(196, 101, 34, 3); c.fillRect(204, 99, 16, 2);
+  for (i = 104; i < 118; i++){ c.fillStyle = i < 108 ? '#3a3c94' : (i < 113 ? '#2c3282' : '#22286e'); c.fillRect(0, i, W, 1); }
+  c.fillStyle = '#f8c070';
+  for (i = 0; i < 18; i++) c.fillRect(110 + Math.floor(r() * 44), 105 + Math.floor(r() * 10), 2 + Math.floor(r() * 5), 1);
+  c.fillStyle = '#e8bc74'; c.fillRect(0, 118, W, FLOOR - 118);
+  c.fillStyle = '#d4a45c';
+  for (i = 0; i < 70; i++) c.fillRect(Math.floor(r() * W), 119 + Math.floor(r() * (FLOOR - 120)), 1, 1);
+  c.fillStyle = '#000'; c.fillRect(0, FLOOR, W, 1);
+  c.fillStyle = '#8a5a2a'; c.fillRect(0, FLOOR + 1, W, H - FLOOR - 1);
+  c.fillStyle = '#6a4020';
+  for (i = 0; i < W; i += 16) c.fillRect(i, FLOOR + 1, 1, H - FLOOR - 1);
+  c.fillStyle = '#a87038'; c.fillRect(0, FLOOR + 1, W, 1);
+  return cv;
+})();
+
+function hoopGeo(i, t, sky){
+  var h = HOOPS[i], off = Math.round(Math.sin(t * 1.1 + h.ph) * (sky ? 5 : 3));  // cloud hoops drift more
+  var bx = h.bx + off, rl = h.side > 0 ? bx - 1 - RIM_W : bx + 4;
+  return { i: i, bx: bx, rl: rl, rr: rl + RIM_W, y: h.y + Math.round(Math.sin(t * 0.9 + h.ph) * (sky ? 3 : 1)), side: h.side, base: h.base, pts: h.pts };
+}
+function drawPlatform(c){
+  var q = PLATFORM, w = q.x2 - q.x1;
+  c.fillStyle = '#000'; c.fillRect(q.x1 + 3, q.y + 3, 4, FLOOR - q.y - 3); c.fillRect(q.x2 - 7, q.y + 3, 4, FLOOR - q.y - 3);
+  c.fillStyle = '#7a5020'; c.fillRect(q.x1 + 4, q.y + 3, 2, FLOOR - q.y - 3); c.fillRect(q.x2 - 6, q.y + 3, 2, FLOOR - q.y - 3);
+  c.fillStyle = '#000'; c.fillRect(q.x1 - 1, q.y - 1, w + 2, 6);
+  c.fillStyle = '#c8a050'; c.fillRect(q.x1, q.y, w, 4);
+  c.fillStyle = '#f0d080'; c.fillRect(q.x1, q.y, w, 1);
+  c.fillStyle = '#7a5a20';
+  for (var i = q.x1 + 5; i < q.x2 - 1; i += 7) c.fillRect(i, q.y, 1, 4);
+}
+var FRONDS = [-2.9, -2.4, -1.9, -1.25, -0.7, -0.15];
+function drawPalm(c, g, active, t, netT){
+  var x0 = g.base, y0 = FLOOR, x2 = g.bx + 1.5, y2 = g.y + 4, cx = (x0 + x2) / 2 + g.side * 6, cy = (y0 + y2) / 2;
+  var n = Math.max(4, Math.ceil((y0 - y2) / 2)), k, u, x, y, pts = [], pass, j, a;
+  for (k = 0; k <= n; k++){
+    u = k / n;
+    pts.push([(1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * cx + u * u * x2, (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * cy + u * u * y2]);
+  }
+  c.fillStyle = '#000';
+  for (k = 0; k < pts.length; k++) c.fillRect(Math.round(pts[k][0]) - 3, Math.round(pts[k][1]) - 1, 6, 4);
+  for (k = 0; k < pts.length; k++){ c.fillStyle = (k % 3 === 0) ? '#5a3414' : '#9a6a32'; c.fillRect(Math.round(pts[k][0]) - 2, Math.round(pts[k][1]), 4, 2); }
+  var fx = g.bx + 1.5, fy = g.y - 21, sw = Math.sin(t * 1.1 + HOOPS[g.i].ph) * 0.12;
+  for (pass = 0; pass < 2; pass++){
+    for (j = 0; j < FRONDS.length; j++){
+      a = FRONDS[j] + sw;
+      for (k = 2; k <= 17; k++){
+        x = Math.round(fx + Math.cos(a) * k); y = Math.round(fy + Math.sin(a) * k + k * k * 0.05);
+        if (pass === 0){ c.fillStyle = '#000'; c.fillRect(x - 1, y - 1, 3, 3); }
+        else {
+          c.fillStyle = active ? '#58d830' : '#3a9028'; c.fillRect(x, y, 1, 1);
+          if (k % 2 === 0){ c.fillStyle = active ? '#2c8c18' : '#1e5a10'; c.fillRect(x, y + 1, 1, 2); }
+        }
+      }
+    }
+  }
+  c.fillStyle = '#000'; c.fillRect(Math.round(fx) - 4, fy, 5, 5); c.fillRect(Math.round(fx), fy + 1, 5, 5);
+  c.fillStyle = '#6a4020'; c.fillRect(Math.round(fx) - 3, fy + 1, 3, 3); c.fillRect(Math.round(fx) + 1, fy + 2, 3, 3);
+  drawBoardRim(c, g, active, t, netT);
+}
+function magicGeo(t){
+  var bx = MAGIC_HOOP.bx;
+  return { i: 3, bx: bx, rl: bx + 4, rr: bx + 4 + RIM_W, y: MAGIC_HOOP.y + Math.round(Math.sin(t * 1.3)), side: -1 };
+}
+/* magic round: the middle platform's deck flashes magic colors */
+function drawMagicPlat(c, t){
+  var q = PLATFORM, w = q.x2 - q.x1, k, n = Math.floor(t * 8);
+  c.fillStyle = 'rgba(200,120,255,' + (0.25 + 0.15 * Math.sin(t * 6)).toFixed(2) + ')'; c.fillRect(q.x1 - 3, q.y - 4, w + 6, 11);
+  c.fillStyle = '#000'; c.fillRect(q.x1 - 1, q.y - 1, w + 2, 6);
+  c.fillStyle = n % 2 ? '#9040e0' : '#30b8d8'; c.fillRect(q.x1, q.y, w, 4);
+  c.fillStyle = MAGIC_COLS[n % MAGIC_COLS.length]; c.fillRect(q.x1, q.y, w, 1);
+  for (k = 0; k < 8; k++){
+    c.fillStyle = MAGIC_COLS[k % MAGIC_COLS.length];
+    c.fillRect(q.x1 + (k * 13 + Math.floor(t * 20)) % w, q.y - 2 - (k * 7 + Math.floor(t * 9)) % 10, 1, 1);
+  }
+}
+/* glass cracks spreading out from where the dunk lands (offsets from the middle of the rim) */
+var CRACKS = (function(){
+  var segs = [], rays = [], k, n;
+  for (k = 0; k < 8; k++) rays.push({ a: -Math.PI + (k + 0.5) * Math.PI / 8 + rand(-0.15, 0.15), x: 0, y: -2 });
+  for (n = 0; n < 3; n++){
+    for (k = 0; k < rays.length; k++){
+      var r = rays[k], a = r.a + rand(-0.4, 0.4), len = rand(5, 9);
+      var nx = clamp(r.x + Math.cos(a) * len, -20, 20), ny = clamp(r.y + Math.sin(a) * len, -23, -1);
+      segs.push([r.x, r.y, nx, ny]); r.x = nx; r.y = ny;
+    }
+  }
+  return segs;
+})();
+function drawMagicHoop(c, t, cp, gone, netT){
+  var g = magicGeo(t), x0 = 4, x1 = 47, y0 = g.y - 24, y1 = g.y + 1, cx = (g.rl + g.rr) / 2, k;
+  c.fillStyle = 'rgba(200,120,255,' + (0.2 + 0.12 * Math.sin(t * 5)).toFixed(2) + ')'; c.fillRect(x0 - 3, y0 - 3, x1 - x0 + 6, y1 - y0 + 16);
+  if (!gone){
+    c.fillStyle = '#000'; c.fillRect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2);
+    c.fillStyle = 'rgba(170,230,255,.55)'; c.fillRect(x0, y0, x1 - x0, y1 - y0);
+    c.fillStyle = 'rgba(255,255,255,.4)'; for (k = 0; k < 6; k++) c.fillRect(x0 + 4 + k, y0 + 2 + k, 2, 1);
+    c.strokeStyle = '#fcfcfc'; c.lineWidth = 1;
+    c.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1);
+    c.strokeRect(g.rl + 4.5, g.y - 10.5, RIM_W - 8, 9);
+    if (cp > 0){
+      c.beginPath();
+      for (k = 0; k < Math.ceil(cp * CRACKS.length); k++){ var sg = CRACKS[k]; c.moveTo(cx + sg[0], g.y + sg[1]); c.lineTo(cx + sg[2], g.y + sg[3]); }
+      c.stroke();
+    }
+  } else {
+    c.fillStyle = '#fcfcfc'; c.fillRect(x0, y0, 3, 2); c.fillRect(x1 - 4, y0, 3, 2); c.fillRect(x0, y1 - 2, 2, 2); c.fillRect(x1 - 3, y1 - 3, 2, 3);
+  }
+  drawNet(c, g.rl, g.rr, g.y, netT, 'rgba(252,252,252,.9)');
+  c.fillStyle = '#000'; c.fillRect(Math.round(g.rl) - 1, g.y - 1, RIM_W + 3, 4);
+  c.fillStyle = MAGIC_COLS[Math.floor(t * 8) % MAGIC_COLS.length]; c.fillRect(Math.round(g.rl), g.y, RIM_W + 1, 2);
+  for (k = 0; k < 7; k++){
+    var a = t * 2 + k * 0.9;
+    c.fillStyle = MAGIC_COLS[k % MAGIC_COLS.length];
+    c.fillRect(Math.round(cx + Math.cos(a) * 25), Math.round(g.y - 10 + Math.sin(a * 1.3) * 16), 1, 1);
+  }
+}
+
+/* ---------- the cloud court ---------- */
+// the golden hoop that wanders back and forth along the top of the screen, worth 7 any time
+function skyHoopGeo(t){
+  var x = 128 + 104 * Math.sin(t * 0.42 + 0.7 * Math.sin(t * 0.13)), rl = Math.round(x - RIM_W / 2);
+  return { i: 4, bx: x, rl: rl, rr: rl + RIM_W, y: 20 + Math.round(Math.sin(t * 1.7) * 2), side: 0, pts: SKY_PTS };
+}
+// two dark rain clouds drift all the way across and off the screen, wait out of sight, then float back in
+function skyRand(k, n){ var v = Math.sin(k * 127.1 + n * 311.7) * 43758.5453; return v - Math.floor(v); }
+function rainClouds(t){
+  return [0, 1].map(function(k){
+    var slot = 21 + k * 5, tt = t + k * 9, n = Math.floor(tt / slot), u = tt - n * slot;
+    var dir = skyRand(k, n) < 0.5 ? 1 : -1, cross = slot - 2 - skyRand(k + 5, n) * 4;  // a 2 to 6 second wait off screen
+    var from = dir > 0 ? -RAIN_HW - 8 : W + RAIN_HW + 8, to = -from + W;
+    var x = from + (to - from) * Math.min(1, u / cross);
+    return { x: x, y: 50 + k * 12 + Math.sin(t * 0.5 + k) * 2, k: k };
+  });
+}
+function drawBolt(c, x0, y0, x1, y1, life){
+  var n = 7, k, pts = [[x0, y0]];
+  for (k = 1; k < n; k++) pts.push([x0 + (x1 - x0) * k / n + rand(-5, 5), y0 + (y1 - y0) * k / n]);
+  pts.push([x1, y1]);
+  if (life > 0.45){ c.fillStyle = 'rgba(255,255,220,0.25)'; c.fillRect(0, 0, W, H); }
+  for (var pass = 0; pass < 2; pass++){
+    c.strokeStyle = pass ? '#fcfcfc' : '#f8e040'; c.lineWidth = pass ? 1 : 3;
+    c.beginPath(); c.moveTo(pts[0][0], pts[0][1]);
+    for (k = 1; k < pts.length; k++) c.lineTo(pts[k][0], pts[k][1]);
+    c.stroke();
+  }
+}
+// a puffy cloud whose top is at y (a platform you can stand on, or a rain cloud)
+function drawCloud(c, x1, x2, y, dark){
+  var n = Math.max(2, Math.round((x2 - x1) / 8)), w = (x2 - x1) / n, i, pass;
+  for (pass = 0; pass < 3; pass++){
+    for (i = 0; i < n; i++){
+      var cx = x1 + (i + 0.5) * w, r = w * 0.62 + (i % 2) * 1.5, cy = y + r - (i % 2);
+      c.fillStyle = pass === 0 ? '#000' : (pass === 1 ? (dark ? '#4a5068' : '#fcfcfc') : (dark ? '#383c52' : '#d4e8fa'));
+      c.beginPath(); c.arc(cx, pass === 2 ? cy + r * 0.45 : cy, pass === 0 ? r + 1 : (pass === 2 ? r * 0.7 : r), 0, Math.PI * 2); c.fill();
+    }
+    if (pass === 0) c.fillRect(x1 - 1, y + w * 0.6, x2 - x1 + 2, w * 0.6 + 1);
+    if (pass === 1){ c.fillStyle = dark ? '#4a5068' : '#fcfcfc'; c.fillRect(x1, y + w * 0.6, x2 - x1, w * 0.6); }
+  }
+}
+var SKY_BG = (function(){
+  var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var c = cv.getContext('2d'), i, seed = 5;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  var sky = ['#2a6ae0', '#3478e8', '#3e86ee', '#4a94f2', '#58a2f6', '#68b0f8', '#7abcfa', '#8ec8fc', '#a2d4fc', '#b8e0fe', '#cceafe'];
+  var bh = (FLOOR + 4) / sky.length;
+  for (i = 0; i < sky.length; i++){ c.fillStyle = sky[i]; c.fillRect(0, Math.floor(i * bh), W, Math.ceil(bh) + 1); }
+  // the sun, up high in a clear sky
+  c.fillStyle = 'rgba(255,250,200,0.35)'; c.beginPath(); c.arc(70, 26, 17, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#fff4a0'; c.beginPath(); c.arc(70, 26, 11, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#fffbe0'; c.beginPath(); c.arc(67, 23, 5, 0, Math.PI * 2); c.fill();
+  // faraway clouds
+  c.fillStyle = '#e4f2fe';
+  for (i = 0; i < 16; i++){ c.beginPath(); c.arc(Math.floor(r() * W), 100 + Math.floor(r() * 18), 6 + r() * 9, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = '#f4faff';
+  for (i = 0; i < 12; i++){ c.beginPath(); c.arc(Math.floor(r() * W), 112 + Math.floor(r() * 10), 7 + r() * 8, 0, Math.PI * 2); c.fill(); }
+  // the cloud floor
+  c.fillStyle = '#000';
+  for (i = -6; i < W + 12; i += 12){ c.beginPath(); c.arc(i, FLOOR + 6 - (i % 24 ? 0 : 2), 9, 0, Math.PI * 2); c.fill(); }
+  c.fillRect(0, FLOOR + 2, W, H);
+  c.fillStyle = '#fcfcfc';
+  for (i = -6; i < W + 12; i += 12){ c.beginPath(); c.arc(i, FLOOR + 6 - (i % 24 ? 0 : 2), 8, 0, Math.PI * 2); c.fill(); }
+  c.fillRect(0, FLOOR + 3, W, H);
+  c.fillStyle = '#d4e8fa';
+  for (i = 0; i < W; i += 7) c.fillRect(i, FLOOR + 9 + (i % 3), 4, 1);
+  return cv;
+})();
+// a hoop standing on its own little cloud
+function drawSkyHoop(c, g, active, t, netT){
+  c.fillStyle = '#000'; c.fillRect(g.bx - 1, g.y + 5, 5, 14);
+  c.fillStyle = active ? '#fcfcfc' : '#9a9aa8'; c.fillRect(g.bx, g.y + 5, 3, 13);
+  drawCloud(c, g.bx - 13, g.bx + 16, g.y + 17, false);
+  drawBoardRim(c, g, active, t, netT);
+}
+// the golden sky hoop: a ring with flapping wings and no backboard
+function drawSkyRing(c, g, t, netT){
+  var cx = (g.rl + g.rr) / 2, fl = Math.round(Math.sin(t * 9) * 2), k, side;
+  for (side = -1; side <= 1; side += 2){
+    var wx = side < 0 ? g.rl - 2 : g.rr + 2;
+    for (k = 0; k < 4; k++){ c.fillStyle = '#000'; c.fillRect(side < 0 ? wx - 3 - k * 2 : wx + k * 2, g.y - 3 - k + fl * (k / 3), 4, 3); }
+    for (k = 0; k < 4; k++){ c.fillStyle = k % 2 ? '#e8f0ff' : '#fcfcfc'; c.fillRect(side < 0 ? wx - 2 - k * 2 : wx + 1 + k * 2, g.y - 2 - k + fl * (k / 3), 2, 1); }
+  }
+  var wob = netT > 0 ? Math.sin(netT * 40) * 1.5 : 0;
+  c.strokeStyle = 'rgba(252,252,252,.9)'; c.lineWidth = 1; c.beginPath();
+  for (k = 0; k <= 4; k++){ c.moveTo(g.rl + (g.rr - g.rl) * k / 4, g.y + 1); c.lineTo(g.rl + 4 + (g.rr - g.rl - 8) * k / 4 + wob, g.y + 10); }
+  c.moveTo(g.rl + 2, g.y + 5); c.lineTo(g.rr - 2, g.y + 5);
+  c.stroke();
+  c.fillStyle = '#000'; c.fillRect(Math.round(g.rl) - 1, g.y - 1, RIM_W + 3, 4);
+  c.fillStyle = Math.floor(t * 6) % 2 ? '#f8d800' : '#f8a000'; c.fillRect(Math.round(g.rl), g.y, RIM_W + 1, 2);
+  if (Math.random() < 0.3){ c.fillStyle = '#fff6a0'; c.fillRect(Math.round(cx + rand(-12, 12)), Math.round(g.y + rand(-6, 6)), 1, 1); }
+}
+function drawRainCloud(c, rc, t){
+  var flash = Math.floor(t * 3 + rc.k * 5) % 11 === 0, k;
+  c.fillStyle = 'rgba(150,190,240,0.7)';
+  for (k = 0; k < 5; k++) c.fillRect(Math.round(rc.x - 8 + k * 4), Math.round(rc.y + 9 + ((t * 60 + k * 7) % 14)), 1, 3);
+  drawCloud(c, rc.x - RAIN_HW, rc.x + RAIN_HW, rc.y - 5, true);
+  if (flash){ c.fillStyle = '#f8f040'; c.fillRect(Math.round(rc.x) - 1, Math.round(rc.y + 6), 2, 5); c.fillRect(Math.round(rc.x) + 1, Math.round(rc.y + 10), 2, 4); }
+}
+
+/* lit: the hoop to light up (-1 lights them all, -2 none); netH is the hoop whose net is still wobbling */
+function drawCourt(c, sky, t, netH, netT, lit){
+  var i;
+  if (sky){
+    c.drawImage(SKY_BG, 0, 0);
+    drawCloud(c, PLATFORM.x1 - 2, PLATFORM.x2 + 2, PLATFORM.y, false);
+    for (i = 0; i < CLOUD_PLATS.length; i++) drawCloud(c, CLOUD_PLATS[i].x1, CLOUD_PLATS[i].x2, CLOUD_PLATS[i].y, false);
+    for (i = 0; i < 3; i++) drawSkyHoop(c, hoopGeo(i, t, true), lit === -1 || lit === i, t, i === netH ? netT : 0);
+    drawSkyRing(c, skyHoopGeo(t), t, netH === 4 ? netT : 0);
+    var rcs = rainClouds(t);
+    for (i = 0; i < rcs.length; i++) drawRainCloud(c, rcs[i], t);
+    return;
+  }
+  c.drawImage(BEACH_BG, 0, 0);
+  drawPlatform(c);
+  for (i = 0; i < 3; i++) drawPalm(c, hoopGeo(i, t, false), lit === -1 || lit === i, t, i === netH ? netT : 0);
+}
+function drawHoopLabels(v, t, lit, sky){
+  var col = Math.floor(t * 3) % 2 ? '#f8d800' : '#fcfcfc';
+  for (var i = 0; i < 3; i++){
+    if (lit !== -1 && lit !== i) continue;
+    var g = hoopGeo(i, t, sky);
+    vText(v, HOOPS[i].pts + ' PTS', (g.rl + g.rr) / 2, g.y + 19, col, nameSize(v));
+  }
+  if (sky){ var sg = skyHoopGeo(t); vText(v, SKY_PTS + ' PTS', (sg.rl + sg.rr) / 2, sg.y + 16, '#f8d800', nameSize(v)); }
+}
+
+var COURT_SECS = 120, COURT_BALLS = 3;
+function CourtGame(sky){
+  var G = newWorld(), p = newHero(60);
+  G.sky = sky; G.shoe = sky; G.jumpMul = sky ? 1.2 : 1; G.look = sky ? LOOK_SHOES : LOOK;
+  G.plats = sky ? [FLOOR_PLAT, PLATFORM].concat(CLOUD_PLATS) : [FLOOR_PLAT, PLATFORM];
+  G.left = COURT_SECS; G.balls = COURT_BALLS; G.ballK = 0; G.seq = 0; G.flight = null; G.dunkBall = null; G.mballs = [];
+  G.outT = 0; G.outShown = false; G.zap = null; G.hero = p;
+  G.hang = function(){ return !!(G.magic && ((G.magic.dunk && !G.magic.dunk.gone) || G.magic.chain)); };
+
+  function geos(t){ var gs = [hoopGeo(0, t, sky), hoopGeo(1, t, sky), hoopGeo(2, t, sky)]; if (sky) gs.push(skyHoopGeo(t)); return gs; }
+  function gain(n){ G.score += n; }
+  function lit(){ return G.magic ? -2 : G.seq; }
+
+  function pressShoot(){
+    if (G.magic){
+      var M = G.magic;
+      if (M.dunk || M.chain || G.balls <= 0) return;
+      if (!p.ground && p.lastG === 'plat'){ if (M.msT <= 0) magicShot(); return; }
+      addPop(G.pops, p.x, p.y - 22, 'JUMP OFF THE PLATFORM, THEN SHOOT!', '#e0b0ff');
+      return;
+    }
+    if (G.flight){ addPop(G.pops, p.x, p.y - 22, 'WAIT FOR IT', '#fcfcfc'); return; }
+    if (G.balls <= 0) return;
+    G.meter = { p: 0, dir: 1 };
+  }
+  function releaseShoot(){
+    if (!G.meter || G.balls <= 0 || G.flight){ G.meter = null; return; }
+    var v = 165 + G.meter.p * 105;
+    G.flight = { x: p.x + p.face * 2, y: p.y - 17, vx: p.face * v * Math.cos(ANG), vy: -v * Math.sin(ANG), rot: 0,
+      scored: false, live: true, age: 0, rest: 0, jump: !p.ground, k: G.ballK, lit: G.seq, touch: [0, 0, 0] };
+    G.balls--; G.meter = null;
+    sfx.dribble();
+  }
+  /* a made basket: the lit hoop scores and moves you along; an unlit one just gives the ball back */
+  function ballScored(b, g){
+    var cx = (g.rl + g.rr) / 2, pts = 0;
+    G.balls++; G.netH = g.i; G.netT = 0.5;
+    addCheer(G.pops, W / 2, 34);
+    burst(G.parts, cx, g.y + 4, 14, ['#f8d800', '#fcfcfc', '#58f878'], 60, 40, 0.8);
+    sfx.swish();
+    if (g.i === 4){
+      // the golden sky hoop counts any time, and does not change which hoop is lit
+      G.ballK = (G.ballK + 1) % 3;
+      pts = SKY_PTS + (b.jump ? 1 : 0);
+      addPop(G.pops, cx, g.y + 16, 'SKY HOOP +' + pts, '#f8d800', true);
+    } else if (g.i === b.lit){
+      G.ballK = (G.ballK + 1) % 3;
+      pts = HOOPS[g.i].pts + (b.jump ? 1 : 0);
+      if (b.jump) addPop(G.pops, cx, g.y - 12, 'JUMP SHOT +1', '#58f878');
+      G.seq++;
+      if (G.seq >= HOOPS.length) startMagic();
+      else addPop(G.pops, W / 2, 52, 'NEXT: ' + HOOPS[G.seq].name + ' HOOP', '#58f8d0');
+    } else addPop(G.pops, cx, g.y - 12, 'NOT LIT! 0 PTS', '#f8d878');
+    if (pts){ gain(pts); addPop(G.pops, p.x, p.y - 28, '+' + pts + ' PTS', '#fcfc78'); }
+  }
+  function stepBall(b, h, gs){
+    var py = b.y, i, n, g;
+    b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR;
+    for (n = 0; n < gs.length; n++){
+      g = gs[n];
+      if (b.scored || !(py < g.y && b.y >= g.y && b.x > g.rl && b.x < g.rr)) continue;
+      b.scored = true; b.vx *= 0.3;
+      ballScored(b, g);
+    }
+    if (b.live) for (i = 0; i < G.birds.length; i++) birdBonk(G, b, G.birds[i]);
+    for (n = 0; n < gs.length; n++){
+      g = gs[n];
+      var posts = [g.rl, g.rr];
+      for (i = 0; i < 2; i++){
+        var px = posts[i], dx = b.x - px, dy = b.y - g.y, d = hyp(dx, dy);
+        if (d < BR + 1 && d > 0){
+          var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
+          b.x = px + nx * (BR + 1); b.y = g.y + ny * (BR + 1); b.touch[g.i] = 1;
+          if (vn < 0){ b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; } }
+        }
+      }
+      if (b.y > g.y - 20 - BR && b.y < g.y + 6 + BR){
+        if (g.side > 0 && b.x + BR > g.bx && b.x < g.bx + 2 && b.vx > 0){ b.x = g.bx - BR; b.vx = -b.vx * 0.55; b.touch[g.i] = 1; sfx.board(); }
+        if (g.side < 0 && b.x - BR < g.bx + 3 && b.x > g.bx + 1 && b.vx < 0){ b.x = g.bx + 3 + BR; b.vx = -b.vx * 0.55; b.touch[g.i] = 1; sfx.board(); }
+      }
+    }
+    if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
+    if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
+    if (b.vy >= 0){
+      for (i = 0; i < G.plats.length; i++){
+        var q = G.plats[i];
+        if (py + BR <= q.y + 0.5 && b.y + BR >= q.y && b.x > q.x1 && b.x < q.x2){
+          b.y = q.y - BR; b.live = false;
+          if (b.vy > 25){ sfx.bounce(b.vy / 3000); b.vy = -b.vy * (sky ? 0.7 : 0.55); b.vx *= 0.85; }
+          else { b.vy = 0; b.vx *= Math.pow(0.35, h); if (Math.abs(b.vx) < 2) b.vx = 0; }
+          break;
+        }
+      }
+    }
+    b.rest = (b.vy === 0 && b.vx === 0) ? b.rest + h : 0;
+  }
+  // missed at a hoop that was not lit: lose one more ball
+  function wrongHoopCheck(b){
+    if (b.touch[b.lit] || !(b.touch[0] || b.touch[1] || b.touch[2])) return;
+    if (G.balls > 0) G.balls--;
+    addPop(G.pops, p.x, p.y - 32, 'WRONG HOOP! -1 BALL', '#f86060');
+    tone(220, 0.25, 'square', 0.05, -100);
+  }
+  // the ball hits a rain cloud: lightning strikes the shooter and half their points go with it
+  function skyZap(b, t){
+    if (!b.live || b.scored || b.zap || G.magic) return;                 // no lightning during magic time
+    var rcs = rainClouds(t);
+    for (var i = 0; i < rcs.length; i++){
+      var rc = rcs[i];
+      if (Math.abs(b.x - rc.x) < RAIN_HW && Math.abs(b.y - rc.y) < 6){
+        b.zap = true; b.age = 99;
+        G.zap = { x: rc.x, y: rc.y + 6, t: 0.6 };
+        hurtHero(G, p, rc.x, 'ZAPPED!');
+        addPop(G.pops, W / 2, 44, 'LIGHTNING! YOU LOST HALF YOUR POINTS!', '#f8f040', true);
+        G.score -= Math.floor(G.score / 2);
+        G.shake = 0.6;
+        hiss(0.7, 0.1, 400); tone(90, 0.6, 'sawtooth', 0.06, -50); tone(1600, 0.15, 'square', 0.04, -1200);
+        return;
+      }
+    }
+  }
+
+  /* ---------- the magic round ---------- */
+  function startMagic(){
+    G.magic = { left: MAGIC_SECS, dunk: null, chain: null, ms: 0, msT: 0, noJump: false };
+    G.meter = null;
+    addCheer(G.pops, W / 2, 50, 'MAGIC MODE!!');
+    addPop(G.pops, W / 2, 66, 'DUNK THE LOW HOOP OR THE GLASS!', '#e0b0ff');
+    addPop(G.pops, W / 2, 76, 'OR JUMP OFF THE PLATFORM AND SHOOT!', '#e0b0ff');
+    burst(G.parts, (PLATFORM.x1 + PLATFORM.x2) / 2, PLATFORM.y, 24, MAGIC_COLS, 70, 0, 1);
+    sfx.bonus();
+  }
+  function endMagic(text){
+    G.magic = null; G.seq = 0;
+    addPop(G.pops, W / 2, 50, text, '#e0b0ff', true);
+    addPop(G.pops, W / 2, 66, 'BACK TO THE LOW HOOP', '#58f8d0');
+  }
+  /* magic shot: from a jump off the platform, one press sends a ball into all four baskets at once */
+  function magicShot(){
+    var M = G.magic, gs = [hoopGeo(0, G.t, sky), hoopGeo(1, G.t, sky), hoopGeo(2, G.t, sky), magicGeo(G.t)];
+    M.ms++; M.noJump = true; M.msT = 0.3;
+    for (var i = 0; i < 4; i++) G.mballs.push({ x0: p.x, y0: p.y - 17, x1: (gs[i].rl + gs[i].rr) / 2, y1: gs[i].y - 2, u: 0, i: i, k: G.ballK, x: p.x, y: p.y - 17 });
+    gain(MAGIC_SHOT_PTS);
+    addCheer(G.pops, W / 2, 40, 'MAGIC SHOT!!!');
+    addPop(G.pops, W / 2, 56, '+' + MAGIC_SHOT_PTS, '#fcfc78', true);
+    fireworks(G.parts, 3);
+    G.shake = 0.6;
+    sfx.dribble(); sfx.bonus();
+  }
+  function stepMagicBalls(dt){
+    for (var i = G.mballs.length - 1; i >= 0; i--){
+      var b = G.mballs[i];
+      b.u += dt / 0.5;
+      var u = Math.min(1, b.u);
+      b.x = b.x0 + (b.x1 - b.x0) * u; b.y = b.y0 + (b.y1 - b.y0) * u - Math.sin(Math.PI * u) * 28;
+      if (b.u >= 1){
+        burst(G.parts, b.x1, b.y1 + 4, 12, ['#f8d800', '#fcfcfc'].concat(MAGIC_COLS), 60, 40, 0.8);
+        if (b.i === 0) sfx.swish();
+        G.mballs.splice(i, 1);
+      }
+    }
+  }
+  /* super dunk chain: dunk the low hoop, then turbo jump left to the middle hoop, right to the high hoop,
+     and left to the glass hoop for the SUPER DUNK */
+  function chainDunk(i, t){
+    var M = G.magic, g = i < 3 ? hoopGeo(i, t, sky) : magicGeo(t), cx = (g.rl + g.rr) / 2;
+    p.x = cx; p.y = g.y + 15; p.vx = 0; p.vy = 0; p.ground = null; p.flipT = 0; p.lastG = null;
+    G.dunkBall = { x: cx, y: g.y + 2, vy: 30, k: G.ballK };
+    G.ballK = (G.ballK + 1) % 3;
+    G.netH = i; G.netT = 0.8;
+    gain(CHAIN_PTS[i]);
+    burst(G.parts, cx, g.y, 24, ['#f8d800', '#fcfcfc'].concat(MAGIC_COLS), 80, 40, 1);
+    sfx.swish();
+    if (i < 3){
+      M.chain = { i: i, t: 0, fly: null, armed: false };
+      addPop(G.pops, cx, g.y - 14, 'DUNK! +' + CHAIN_PTS[i], '#fcfc78', true);
+      G.shake = 0.25;
+      return;
+    }
+    M.chain = null;
+    M.dunk = { t: 0, cp: 0, gone: false, snd: 0, sup: true };
+    addCheer(G.pops, W / 2, 34, 'SUPER DUNK!!!!');
+    addPop(G.pops, W / 2, 50, '+' + CHAIN_PTS[3], '#fcfc78', true);
+    fireworks(G.parts, 4);
+    G.shake = 1.4;
+    sfx.fanfare(); sfx.bonus();
+  }
+  function stepChain(dt, t){
+    var M = G.magic, C = M.chain;
+    C.t += dt;
+    if (C.fly){
+      // turbo jump: a fast spinning arc to the next hoop with a rainbow trail
+      var F = C.fly, k = Math.min(1, C.t / 0.55), e = k * k * (3 - 2 * k);
+      var g = F.to < 3 ? hoopGeo(F.to, t, sky) : magicGeo(t), x1 = (g.rl + g.rr) / 2, y1 = g.y + 15;
+      p.x = F.x0 + (x1 - F.x0) * e; p.y = F.y0 + (y1 - F.y0) * e - Math.sin(Math.PI * k) * 26;
+      p.vx = 0; p.vy = 0; p.flipT = 0.3 * (1 - k); p.face = F.dir;
+      burst(G.parts, p.x, p.y - 7, 2, MAGIC_COLS, 12, 0, 0.5);
+      if (k >= 1) chainDunk(F.to, t);
+      return;
+    }
+    var g2 = hoopGeo(C.i, t, sky);
+    p.x = (g2.rl + g2.rr) / 2; p.y = g2.y + 15; p.vx = 0; p.vy = 0;
+    var want = CHAIN_DIR[C.i];
+    if (!inp.l && !inp.r) C.armed = true;                                 // let go of the arrow you came in with before the next one counts
+    if (C.armed && ((want < 0 && inp.l) || (want > 0 && inp.r))){
+      C.fly = { to: C.i + 1, x0: p.x, y0: p.y, dir: want }; C.t = 0;
+      tone(300, 0.4, 'square', 0.05, 900); hiss(0.3, 0.05, 2500);
+    } else if (C.t > 3){
+      // waited too long: drop down, and the magic keeps going if there is time left
+      M.chain = null; p.ground = null; p.vy = 0;
+      addPop(G.pops, p.x, p.y - 24, 'TOO SLOW!', '#e0b0ff');
+    }
+  }
+  function stepMagic(dt, t){
+    var M = G.magic, g = magicGeo(t), cx = (g.rl + g.rr) / 2;
+    if (Math.random() < dt * 10) burst(G.parts, p.x + rand(-4, 4), p.y - rand(0, 14), 1, MAGIC_COLS, 8, -20, 0.6);
+    M.msT = Math.max(0, M.msT - dt);
+    if (M.chain){ stepChain(dt, t); return; }                              // the magic clock waits during the chain
+    // landing after a magic shot ends the magic
+    if (M.ms > 0 && p.ground){ endMagic('WHAT A SHOW!'); return; }
+    if (!M.dunk && M.ms === 0 && G.balls > 0){
+      var lo = hoopGeo(0, t, sky);
+      if (p.x > lo.rl - 3 && p.x < lo.rr + 3 && p.y > lo.y - 6 && p.y < lo.y + 16){ chainDunk(0, t); return; }
+    }
+    if (!M.dunk){
+      M.left -= dt;
+      if (M.left <= 0){ endMagic('MAGIC FADED'); return; }
+      // land on the magic hoop with the ball for the slam dunk
+      if (G.balls > 0 && M.ms === 0 && p.x > g.rl - 3 && p.x < g.rr + 3 && p.y > g.y - 6 && p.y < g.y + 16){
+        M.dunk = { t: 0, cp: 0, gone: false, snd: 0 };
+        p.vx = 0; p.vy = 0; p.ground = null; p.flipT = 0; G.meter = null;
+        G.dunkBall = { x: cx, y: g.y + 2, vy: 30, k: G.ballK };
+        G.ballK = (G.ballK + 1) % 3;
+        G.netH = 3; G.netT = 0.8;
+        gain(DUNK_PTS);
+        addPop(G.pops, cx, g.y - 14, 'DUNK! +' + DUNK_PTS, '#fcfc78', true);
+        burst(G.parts, cx, g.y, 24, ['#f8d800', '#fcfcfc', '#f878d8'], 80, 40, 1);
+        sfx.swish(); sfx.bonus();
+      }
+      return;
+    }
+    var D = M.dunk;
+    D.t += dt;
+    if (!D.gone){ p.x = cx; p.y = g.y + 15; p.vx = 0; p.vy = 0; }
+    if (D.t > 1.2){
+      D.cp = Math.min(1, (D.t - 1.2) / 1.0);
+      if (Math.floor(D.cp * 6) > D.snd){ D.snd = Math.floor(D.cp * 6); tone(1800 + D.snd * 150, 0.04, 'square', 0.03); }
+    }
+    if (!D.gone && D.t >= 2.3){
+      D.gone = true; p.ground = null; p.vy = 0;
+      if (D.sup){ G.shake = 1.2; fireworks(G.parts, 3); }
+      burst(G.parts, cx, g.y - 12, 34, ['#c8f0ff', '#fcfcfc', '#80d8f8'], 80, 220, 1.4);
+      hiss(0.5, 0.08, 3000); tone(1600, 0.25, 'square', 0.04, -1300);
+    }
+    if (D.t >= 3.4) endMagic(D.sup ? 'SUPER DUNK!!!!' : 'WHAT A DUNK!');
+  }
+
+  G.update = function(dt){
+    G.t += dt; G.left -= dt;
+    var t = G.t, gs = geos(t), i;
+    G.rimSnd -= dt; G.netT = Math.max(0, G.netT - dt);
+    G.shake = Math.max(0, G.shake - dt);
+    if (G.zap){ G.zap.t -= dt; if (G.zap.t <= 0) G.zap = null; }
+    stepMagicBalls(dt);
+    var holding = G.balls > 0 && !G.flight;
+    var mv = (G.meter && p.ground) ? 0 : (inp.l ? -1 : (inp.r ? 1 : 0));
+    if (G.meter && p.ground && (inp.l || inp.r)) p.face = inp.l ? -1 : 1;
+    p.jumpHeld = inp.a || inp.u;
+    if (G.magic) stepMagic(dt, t);
+    if (!G.hang()) stepHero(G, p, dt, mv);
+    if (G.dunkBall){
+      var db = G.dunkBall; db.vy += BALL_G * dt; db.y += db.vy * dt;
+      if (db.y > FLOOR - BR){ burst(G.parts, db.x, FLOOR - BR, 6, ['#fcfcfc', '#f07818'], 30, 0, 0.3); G.dunkBall = null; }
+    }
+    if (G.meter){
+      if (!holding) G.meter = null;
+      else {
+        G.meter.p += G.meter.dir * dt / (p.ground ? 1.4 : 0.55);
+        if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
+      }
+    }
+    if (holding && !G.meter && p.ground){
+      var before = Math.floor(p.dp / Math.PI);
+      p.dp += dt * (p.vx ? 9 : 6);
+      if (Math.floor(p.dp / Math.PI) !== before) sfx.dribble();
+    }
+    if (G.flight){
+      var b = G.flight;
+      b.age += dt;
+      for (i = 0; i < 3; i++) stepBall(b, dt / 3, gs);
+      if (sky) skyZap(b, t);
+      // rebound: grab your own ball once it is loose (falling, bounced, or through the net) to keep it
+      var loose = b.scored || !b.live || (b.vy > 0 && b.age > 0.4);
+      if (loose && Math.abs(b.x - p.x) < 7 && b.y > p.y - 20 && b.y < p.y + 3 && !b.zap){
+        if (!b.scored){ wrongHoopCheck(b); G.balls++; }                  // a made basket already gave the ball back
+        addPop(G.pops, p.x, p.y - 24, 'REBOUND!', '#fcfcfc');
+        sfx.dribble();
+        G.flight = null;
+      } else if ((b.landT = b.live ? 0 : (b.landT || 0) + dt) > 2.5 || b.rest > 1 || b.age > 7 || (b.scored && !b.live)){
+        // nobody got it: the missed ball is lost and the next one appears in your hands
+        if (!b.scored) wrongHoopCheck(b);
+        burst(G.parts, b.x, b.y, 6, ['#fcfcfc', '#f07818'], 30, 0, 0.3);
+        G.flight = null;
+      }
+    }
+    // out of balls: a short wait, then a fresh rack of three
+    if (!G.flight && G.balls <= 0 && !G.outShown){
+      G.outShown = true; G.outT = 1.8; G.meter = null;
+      addPop(G.pops, W / 2, 44, 'OUT OF BALLS!', '#f86060', true);
+      sfx.over();
+    }
+    if (G.outT > 0){
+      G.outT -= dt;
+      if (G.outT <= 0){
+        G.balls = COURT_BALLS; G.outShown = false;
+        addPop(G.pops, W / 2, 44, '3 MORE BALLS!', '#fcfc78', true);
+        sfx.bonus();
+      }
+    }
+    stepBirds(G, p, dt, function(bd){ gain(1); addPop(G.pops, bd.x, bd.y - 6, 'STOMP! +1', '#fcfc78'); },
+      function(x, text){ hurtHero(G, p, x, text); });
+    stepFx(G.parts, G.pops, dt);
+    if (G.left <= 0){ G.left = 0; G.meter = null; G.done = true; }
+  };
+
+  G.draw = function(v){
+    var c = v.c, t = G.t, M = G.magic, D = M && M.dunk, hang = G.hang();
+    gameXf(v);
+    drawCourt(c, sky, t, G.netH, G.netT, lit());
+    if (M){ drawMagicPlat(c, t); drawMagicHoop(c, t, D ? D.cp : 0, D && D.gone, G.netH === 3 ? G.netT : 0); }
+    if (G.dunkBall) drawBall(c, G.dunkBall.x, G.dunkBall.y, 0, G.dunkBall.k);
+    drawBirds(c, G.birds);
+    drawPoops(c, G.poops, G.splats);
+    var holding = G.balls > 0 && !G.flight && !hang, over = hang || (holding && (!!G.meter || !p.ground));
+    drawHero(c, G.look, p, over);
+    if (holding){
+      if (over) drawBall(c, p.x + p.face * 2, p.y - 17, 0, G.ballK);
+      else drawBall(c, p.x + p.face * 6, p.y - BR - Math.abs(Math.sin(p.dp)) * 8, p.dp * p.face, G.ballK);
+    }
+    if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
+    if (G.flight) drawBall(c, G.flight.x, G.flight.y, G.flight.rot, G.flight.k);
+    for (var mi = 0; mi < G.mballs.length; mi++) drawBall(c, G.mballs[mi].x, G.mballs[mi].y, t * 12, G.mballs[mi].k);
+    if (G.zap) drawBolt(c, G.zap.x, G.zap.y, p.x, p.y - 10, G.zap.t);
+    drawParts(c, G.parts);
+    drawHoopLabels(v, t, lit(), sky);
+    if (M && !D) vText(v, 'MAGIC ' + Math.ceil(M.left), W / 2, H - 5, MAGIC_COLS[Math.floor(t * 6) % MAGIC_COLS.length], nameSize(v));
+    var C = M && M.chain;
+    if (C && !C.fly){
+      var acol = Math.floor(t * 6) % 2 ? '#f8d800' : '#fcfcfc', ad = CHAIN_DIR[C.i];
+      vText(v, ad < 0 ? '<<< PRESS LEFT!' : 'PRESS RIGHT! >>>', clamp(p.x + ad * 30, 50, W - 50), p.y - 30, acol, nameSize(v));
+      vText(v, String(Math.max(1, Math.ceil(3 - C.t))), p.x, p.y - 40, acol, nameSize(v));
+    }
+    if (D && D.t < 2.6) vText(v, D.sup ? 'SUPER DUNK!!!!' : 'SLAM DUNK!!!', W / 2, H / 2 - 8, CHEER_COLS[Math.floor(t * 10) % CHEER_COLS.length], Math.round(nameSize(v) * (3 + Math.sin(t * 20) * 0.25)));
+    drawPops(v, G.pops);
+  };
+  G.press = function(k){
+    if (G.outT > 0) return;
+    if (k === 'jump') heroJump(G, p);
+    else if (k === 'drop') heroDrop(p);
+    else if (k === 'shoot') pressShoot();
+  };
+  G.release = function(k){ if (k === 'shoot') releaseShoot(); };
+  G.hud = function(){
+    return { balls: G.balls, ballK: G.ballK, info: G.magic ? 'MAGIC ' + Math.ceil(G.magic.left) : 'NEXT: ' + HOOPS[G.seq].pts + ' PTS' };
+  };
+  return G;
+}
+
+/* ============================================================
+   THE BOARDS
+============================================================ */
+var BOARDS = [
+  { id: 'gym', name: 'FREE THROWS', sub: 'THE ORIGINAL: SHOOT HOOPS IN THE GYM', make: GymGame,
+    how: 'BASKET 2 &nbsp; BEHIND THE 3 LINE 3 &nbsp; 3 IN A ROW = ON FIRE, 5 EACH<br>OFF A BIRD AND IN = 10 &nbsp; STOMP A BIRD +5<br>BIRDS YOU HIT DIVE-BOMB YOU, AND WATCH OUT FOR POOP!<br>3 HEARTS &nbsp; 1 MINUTE &nbsp; EVERY BASKET ADDS 3 SECONDS' },
+  { id: 'beach', name: 'HOOPS AT THE BEACH', sub: 'PALM TREE HOOPS: LIGHT THEM UP IN ORDER, THEN MAGIC', make: function(){ return CourtGame(false); },
+    how: 'SHOOT THE LIT HOOP IN ORDER: 2, 3, THEN 5 PTS &nbsp; JUMP SHOT +1<br>THEN MAGIC: DUNK THE LOW HOOP AND FOLLOW THE ARROWS FOR A SUPER DUNK,<br>DUNK THE GLASS HOOP, OR JUMP OFF THE PLATFORM AND SHOOT<br>GRAB YOUR REBOUND TO KEEP THE BALL &nbsp; 2 MINUTES' },
+  { id: 'sky', name: 'IN THE CLOUDS', sub: "AIR JORDANN'S ON: TRIPLE JUMP, SKY HOOP, RAIN CLOUDS", make: function(){ return CourtGame(true); },
+    how: "YOU'RE WEARING THE AIR JORDANN'S: JUMP HIGHER, AND JUMP 3 TIMES<br>SPRINGY CLOUDS &nbsp; LIT HOOPS 2, 3, 5, THEN MAGIC<br>THE GOLDEN SKY HOOP IS WORTH 7 ANY TIME<br>DON'T HIT A RAIN CLOUD: LIGHTNING TAKES HALF YOUR POINTS! &nbsp; 2 MINUTES" }
+];
+function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
+function controlsText(){
+  return isTouch() ? '&#9664; &#9654; RUN &nbsp; A JUMP (TAP AGAIN IN THE AIR) &nbsp; HOLD B, LET GO TO SHOOT'
+    : '&#9664; &#9654; RUN &nbsp; &#9650; JUMP (AGAIN IN THE AIR) &nbsp; &#9660; DROP DOWN &nbsp; HOLD SPACE, LET GO TO SHOOT &nbsp; ESC PAUSE';
+}
+
+/* ============================================================
+   INPUT: keyboard, the on-screen controller and a game controller all press the same buttons
+   l r u d = arrows, a = jump, b = shoot; start and back are one-time presses
+============================================================ */
+var inp = { l: false, r: false, u: false, d: false, a: false, b: false };
+var SRC = { kb: {}, pad: {}, touch: {} };
+function setKey(src, k, on){
+  var s = SRC[src]; on = !!on;
+  if (!!s[k] === on) return;
+  s[k] = on;
+  var was = inp[k], now = !!(SRC.kb[k] || SRC.pad[k] || SRC.touch[k]);
+  inp[k] = now;
+  if (now && !was) keyDown(k);
+  else if (!now && was) keyUp(k);
+}
+
+/* ============================================================
+   SCREENS: title (board picker) -> intro -> play -> results
+============================================================ */
+var view = null, game = null, boardIdx = 0, mode = 'title', introT = 0, clearT = 0;
+var panelBtns = [], panelIdx = 0, hudLast = {};
+var previews = [];
+
+function showScreen(id){
+  ['scrTitle', 'scrGame'].forEach(function(s){ $(s).classList.toggle('on', s === id); });
+}
+function buildTitle(){
+  var box = $('boards'), bs = bests();
+  box.innerHTML = '';
+  previews = [];
+  BOARDS.forEach(function(B, i){
+    var el = document.createElement('div');
+    el.className = 'board' + (i === boardIdx ? ' sel' : '');
+    el.innerHTML = '<canvas></canvas><div class="bNum">BOARD ' + (i + 1) + '</div><div class="bName">' + B.name + '</div>' +
+      '<div class="bSub">' + B.sub + '</div><div class="bBest">BEST ' + (bs[B.id] || 0) + '</div><div class="bPlay">PLAY &#9654;</div>';
+    el.onclick = function(){ ac(); boardIdx = i; startBoard(); };
+    el.onmouseenter = function(){ selectBoard(i, true); };
+    box.appendChild(el);
+    var cv = el.querySelector('canvas');
+    cv.width = W * 2; cv.height = H * 2;
+    var pv = { cv: cv, c: cv.getContext('2d'), S: 2, dpr: 1 }, g = B.make();
+    previews.push({ v: pv, g: g });
+  });
+  $('help').innerHTML = controlsText() + '<br>' + (isTouch() ? 'TAP A BOARD TO PLAY' : '&#9664; &#9654; PICK A BOARD &nbsp; SPACE OR ENTER TO PLAY') + '<br>GAME CONTROLLERS WORK TOO';
+}
+function selectBoard(i, quiet){
+  i = (i + BOARDS.length) % BOARDS.length;
+  if (i === boardIdx) return;
+  boardIdx = i;
+  store(SEL_KEY, i);
+  var els = $('boards').children;
+  for (var k = 0; k < els.length; k++) els[k].classList.toggle('sel', k === i);
+  if (els[i] && els[i].scrollIntoView && !quiet) els[i].scrollIntoView({ block: 'nearest' });
+  if (!quiet) sfx.tick();
+}
+function goTitle(){
+  mode = 'title'; game = null;
+  hidePanel();
+  buildTitle();
+  showScreen('scrTitle');
+}
+
+function showPanel(html, acts){
+  var panel = $('panel');
+  panel.innerHTML = html; panel.classList.remove('hide');
+  panelBtns = [].slice.call(panel.querySelectorAll('button'));
+  panelBtns.forEach(function(b){ b.onclick = function(){ ac(); var f = acts[b.getAttribute('data-act')]; if (f) f(); }; });
+  panelIdx = 0; markSel();
+}
+function markSel(){ panelBtns.forEach(function(b, i){ b.classList.toggle('sel', i === panelIdx); }); }
+function hidePanel(){ $('panel').classList.add('hide'); panelBtns = []; }
+
+function startBoard(){
+  var B = BOARDS[boardIdx];
+  store(SEL_KEY, boardIdx);
+  game = B.make();
+  mode = 'intro'; introT = 4; hudLast = {};
+  showScreen('scrGame');
+  resize();
+  showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + '</p><h1>' + B.name + '</h1><p class="how">' + B.how + '</p>' +
+    '<p class="tip">' + controlsText() + '</p>' +
+    '<div class="row"><button data-act="go">GO! <span id="cd">4</span></button><button class="sm" data-act="menu">BOARDS</button></div>',
+    { go: begin, menu: goTitle });
+}
+function begin(){
+  if (mode !== 'intro') return;
+  mode = 'play'; hidePanel();
+}
+function pauseGame(){
+  if (mode !== 'play') return;
+  mode = 'pause';
+  if (game) game.meter = null;
+  showPanel('<h1>PAUSED</h1><div class="row"><button data-act="resume">RESUME</button><button class="sm" data-act="again">RESTART</button><button class="sm" data-act="menu">BOARDS</button></div>',
+    { resume: resume, again: startBoard, menu: goTitle });
+}
+function resume(){ if (mode !== 'pause') return; mode = 'play'; hidePanel(); }
+function finish(){
+  var B = BOARDS[boardIdx], bs = bests(), best0 = bs[B.id] || 0, sc = game.score, isBest = sc > best0;
+  if (isBest){ bs[B.id] = sc; store(BEST_KEY, bs); }
+  mode = 'over';
+  showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + ': ' + B.name + '</p><h1>' + (isBest ? 'NEW BEST!' : 'NICE!') + '</h1><p>SCORE ' + sc + '</p>' +
+    '<p class="how">BEST ' + Math.max(best0, sc) + '</p><div class="row"><button data-act="again">AGAIN</button><button class="sm" data-act="menu">BOARDS</button></div>',
+    { again: startBoard, menu: goTitle });
+  if (isBest) sfx.fanfare();
+}
+
+function keyDown(k){
+  ac();
+  if (mode === 'title'){
+    if (k === 'l' || k === 'u') selectBoard(boardIdx - 1);
+    else if (k === 'r' || k === 'd') selectBoard(boardIdx + 1);
+    else if (k === 'a' || k === 'b' || k === 'start') startBoard();
+    return;
+  }
+  if (mode === 'play'){
+    if (k === 'start' || k === 'back') pauseGame();
+    else if (k === 'u' || k === 'a') game.press('jump');
+    else if (k === 'd') game.press('drop');
+    else if (k === 'b') game.press('shoot');
+    return;
+  }
+  if (k === 'back'){
+    if (mode === 'pause') resume();
+    else if (mode === 'intro' || mode === 'over') goTitle();
+    return;
+  }
+  if (panelBtns.length){
+    if (k === 'l' || k === 'u'){ panelIdx = (panelIdx - 1 + panelBtns.length) % panelBtns.length; markSel(); sfx.tick(); }
+    else if (k === 'r' || k === 'd'){ panelIdx = (panelIdx + 1) % panelBtns.length; markSel(); sfx.tick(); }
+    else if (k === 'a' || k === 'b' || k === 'start') panelBtns[panelIdx].click();
+  }
+}
+function keyUp(k){ if (mode === 'play' && k === 'b') game.release('shoot'); }
+
+/* ---------- keyboard ---------- */
+var KEYMAP = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd', ' ': 'b', a: 'l', d: 'r', w: 'u', s: 'd', A: 'l', D: 'r', W: 'u', S: 'd' };
+document.addEventListener('keydown', function(e){
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P'){ e.preventDefault(); if (!e.repeat) keyDown('back'); return; }
+  if (e.key === 'Enter'){ e.preventDefault(); if (!e.repeat) keyDown('start'); return; }
+  var k = KEYMAP[e.key];
+  if (!k) return;
+  e.preventDefault();
+  if (document.activeElement && document.activeElement.blur && document.activeElement !== document.body) document.activeElement.blur();
+  setKey('kb', k, true);
+});
+document.addEventListener('keyup', function(e){ var k = KEYMAP[e.key]; if (k) setKey('kb', k, false); });
+window.addEventListener('blur', function(){ for (var k in SRC.kb) setKey('kb', k, false); });
+
+/* ---------- on-screen controller ---------- */
+function bindPad(){
+  var dp = $('dpad'), touches = {}, mouseDown = false;
+  function dirOf(x, y){
+    var r = dp.getBoundingClientRect(), dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2), R = r.width / 2;
+    return {
+      l: dx < -R * 0.2 && Math.abs(dx) > Math.abs(dy) * 0.45,
+      r: dx > R * 0.2 && Math.abs(dx) > Math.abs(dy) * 0.45,
+      u: dy < -R * 0.3 && Math.abs(dy) > Math.abs(dx) * 0.45,
+      d: dy > R * 0.3 && Math.abs(dy) > Math.abs(dx) * 0.45
+    };
+  }
+  function evalDirs(){
+    var o = { l: false, r: false, u: false, d: false }, k;
+    for (k in touches){ var t = touches[k]; o.l = o.l || t.l; o.r = o.r || t.r; o.u = o.u || t.u; o.d = o.d || t.d; }
+    ['l', 'r', 'u', 'd'].forEach(function(d){ setKey('touch', d, o[d]); });
+    $('dpL').className = 'dpA l' + (o.l ? ' on' : ''); $('dpR').className = 'dpA r' + (o.r ? ' on' : '');
+    $('dpU').className = 'dpA u' + (o.u ? ' on' : ''); $('dpD').className = 'dpA d' + (o.d ? ' on' : '');
+  }
+  function tStart(e){
+    e.preventDefault(); ac();
+    for (var i = 0; i < e.changedTouches.length; i++){ var t = e.changedTouches[i]; touches['t' + t.identifier] = dirOf(t.clientX, t.clientY); }
+    evalDirs();
+  }
+  function tEnd(e){
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) delete touches['t' + e.changedTouches[i].identifier];
+    evalDirs();
+  }
+  dp.addEventListener('touchstart', tStart, { passive: false });
+  dp.addEventListener('touchmove', tStart, { passive: false });
+  dp.addEventListener('touchend', tEnd, { passive: false });
+  dp.addEventListener('touchcancel', tEnd, { passive: false });
+  dp.addEventListener('mousedown', function(e){ mouseDown = true; touches.m = dirOf(e.clientX, e.clientY); evalDirs(); });
+  document.addEventListener('mousemove', function(e){ if (mouseDown){ touches.m = dirOf(e.clientX, e.clientY); evalDirs(); } });
+  document.addEventListener('mouseup', function(){ if (mouseDown){ mouseDown = false; delete touches.m; evalDirs(); } });
+  function bindBtn(id, key){
+    var el = $(id), count = 0;
+    function on(){ el.className = 'pb on'; setKey('touch', key, true); }
+    function off(){ el.className = 'pb'; setKey('touch', key, false); }
+    el.addEventListener('touchstart', function(e){ e.preventDefault(); ac(); count += e.changedTouches.length; if (count === e.changedTouches.length) on(); }, { passive: false });
+    el.addEventListener('touchend', function(e){ e.preventDefault(); count = Math.max(0, count - e.changedTouches.length); if (!count) off(); }, { passive: false });
+    el.addEventListener('touchcancel', function(e){ e.preventDefault(); count = 0; off(); }, { passive: false });
+    el.addEventListener('mousedown', function(){ on(); var u = function(){ document.removeEventListener('mouseup', u); off(); }; document.addEventListener('mouseup', u); });
+  }
+  bindBtn('btnA', 'a');
+  bindBtn('btnB', 'b');
+  $('hPause').onclick = function(){ ac(); if (mode === 'play') pauseGame(); else if (mode === 'pause') resume(); };
+}
+
+/* ---------- game controller (Gamepad API, standard mapping) ---------- */
+var padPrev = null;
+function pollPad(){
+  var list = navigator.getGamepads ? navigator.getGamepads() : [], g = null, i;
+  for (i = 0; i < list.length; i++) if (list[i] && list[i].connected !== false){ g = list[i]; break; }
+  var now = {};
+  if (g){
+    var b = function(n){ return !!(g.buttons[n] && g.buttons[n].pressed); };
+    var ax = g.axes[0] || 0, ay = g.axes[1] || 0;
+    now.l = b(14) || ax < -0.5; now.r = b(15) || ax > 0.5;
+    now.u = b(12) || ay < -0.5; now.d = b(13) || ay > 0.5;
+    now.a = b(0);                                   // A jumps
+    now.b = b(1) || b(2) || b(3) || b(7);           // B, X, Y or the right trigger shoots
+    now.start = b(9); now.back = b(8);
+  }
+  if (!padPrev){ padPrev = now; return; }           // buttons already held when the page noticed the controller don't count
+  ['l', 'r', 'u', 'd', 'a', 'b'].forEach(function(k){ if (!!now[k] !== !!padPrev[k]) setKey('pad', k, now[k]); });
+  if (now.start && !padPrev.start) keyDown('start');
+  if (now.back && !padPrev.back) keyDown('back');
+  padPrev = now;
+}
+
+/* ---------- layout ---------- */
+function resize(){
+  document.body.classList.toggle('land', window.innerWidth > window.innerHeight);
+  document.body.classList.toggle('touch', isTouch());
+  if (mode === 'title') return;
+  var st = $('stage');
+  if (isTouch() && window.innerWidth <= window.innerHeight){
+    // phone held upright: the court across the top, the controller fills the rest
+    var hudH = $('hud').offsetHeight || 40;
+    fitView(view, window.innerWidth, Math.min(window.innerWidth * H / W, window.innerHeight - hudH - 200));
+    st.style.height = view.ch + 'px';
+  } else {
+    st.style.height = '';
+    fitView(view, st.clientWidth, st.clientHeight);
+  }
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', function(){ setTimeout(resize, 200); });
+document.addEventListener('visibilitychange', function(){ if (document.hidden) pauseGame(); });
+
+/* ---------- HUD ---------- */
+function hud(){
+  var h = game.hud(), sc = String(game.score) + ' PTS', tm = fmt(game.left), bk = h.balls + ',' + h.ballK, bh = '';
+  if (sc !== hudLast.sc){ $('hScore').textContent = sc; hudLast.sc = sc; }
+  if (tm !== hudLast.tm){ $('hTime').textContent = tm; hudLast.tm = tm; }
+  if (h.info !== hudLast.info){ $('hInfo').textContent = h.info; hudLast.info = h.info; }
+  if (bk !== hudLast.bk){
+    for (var i = 0; i < h.balls && i < 8; i++) bh += '<span class="bi k' + h.ballK + '"></span>';
+    $('hBalls').innerHTML = bh; hudLast.bk = bk;
+  }
+}
+
+/* ---------- the loop ---------- */
+var lastNow = 0;
+function frame(now){
+  var dt = Math.min(0.05, (now - lastNow) / 1000 || 0); lastNow = now;
+  pollPad();
+  if (mode === 'title'){
+    // the board previews play quietly behind the title: just the scene, nobody moving
+    for (var i = 0; i < previews.length; i++){ var P = previews[i]; P.g.t += dt; P.g.draw(P.v); }
+  } else if (game){
+    if (mode === 'play'){
+      game.update(dt);
+      if (game.done){ mode = 'clear'; clearT = 1.8; }
+    } else if (mode === 'clear'){
+      stepFx(game.parts, game.pops, dt); clearT -= dt;
+      if (clearT <= 0) finish();
+    } else if (mode === 'intro'){
+      var before = Math.ceil(introT);
+      introT -= dt;
+      var cd = $('cd');
+      if (cd && Math.ceil(introT) !== before){ cd.textContent = Math.max(0, Math.ceil(introT)); if (introT > 0) sfx.tick(); }
+      if (introT <= 0) begin();
+    }
+    game.draw(view);
+    if (mode === 'clear') vText(view, game.clearText, W / 2, H / 2 - 8, '#fcfc78', Math.round(nameSize(view) * 2.2));
+    if (game.shake > 0 && mode === 'play'){
+      var m = Math.min(1, game.shake) * 4;
+      view.cv.style.transform = 'translate(' + Math.round(rand(-m, m)) + 'px,' + Math.round(rand(-m, m)) + 'px)'; view.shk = true;
+    } else if (view.shk){ view.cv.style.transform = ''; view.shk = false; }
+    hud();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- start up ---------- */
+view = makeView($('cv'));
+boardIdx = clamp(load(SEL_KEY) | 0, 0, BOARDS.length - 1);
+bindPad();
+resize();
+goTitle();
+if (document.fonts && document.fonts.load) document.fonts.load('8px "Press Start 2P"').catch(function(){});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
