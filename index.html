@@ -57,6 +57,8 @@ button { font-family: inherit; }
 #talk.hide { display: none; }
 #tName { margin-bottom: 4px; }
 #tText { min-height: 1.8em; }
+#tFace { display: none; float: left; width: 5.4em; height: 5.4em; object-fit: cover; border: 3px solid #f8c000; box-shadow: 0 0 0 3px #000; border-radius: 4px; margin: 0 14px 4px 0; }
+#tFace.on { display: block; }
 #tMore { position: absolute; right: 12px; bottom: 6px; color: #f8d800; animation: blink .7s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 #tBill { display: none; background: #fffbe8; color: #1b1040; border: 3px solid #000; border-radius: 4px; padding: 8px 12px; margin: 8px 0 4px; font-size: .85em; }
@@ -137,7 +139,7 @@ body.touch:not(.land) #pad { flex: 1; }
       <div class="pb" id="btnA"><b>A</b><i>JUMP</i></div>
     </div>
   </div>
-  <div id="talk" class="hide"><div id="tName"></div><div id="tText"></div><div id="tBill"></div><div id="tOpts"></div><div id="tMore">&#9660;</div></div>
+  <div id="talk" class="hide"><img id="tFace" alt=""><div id="tName"></div><div id="tText"></div><div id="tBill"></div><div id="tOpts"></div><div id="tMore">&#9660;</div></div>
 </div>
 
 <script>
@@ -1535,7 +1537,20 @@ function CourtGame(sky){
 var STREET_WARM = 60, STREET_MATCH = 120, FENCE_TOP = 57;
 var RIVAL_LOOK = { shirt: 9, skin: 3, hat: 6, hc: 0, shoe: 0 };
 var VENDOR_LOOK = { shirt: 2, skin: 1, hat: 2, hc: 5, shoe: 0 };
-var TALK_COLS = { YOU: '#58d8f8', DRE: '#f87858', CARL: '#f8d800' };
+var TALK_COLS = { YOU: '#58d8f8', DRE: '#f87858', CARL: '#f8d800', 'KING HOOPER': '#f8c000' };
+var TALK_FACES = { 'KING HOOPER': 'king-face.jpg' };
+/* King Hooper on the court: a basketball head, a gold crown, a maroon jersey with a gold crown on it, and a cape */
+var KING_SPRITE = (function(){
+  var rows = [
+    '.....y.......', '...y.y.y.....', '...yyyyy.....', '..yrryrry....', '..yyyyyyy....',
+    '..OoooooO....', '.OoRooRooO...', '.ooOkkkOoo...', '.ookwwwkoo...', '..OooOooO....',
+    '...mmmmm.....', '.MmmyyymmM...', 'smmmmmmmmms..', 'smmmmmmmmms..', 'ssmmmmmmmss..',
+    '..mmmmmmm....', '..yyYyyyy....', '..mmm.mmm....', '..mmm.mmm....', '..ss...ss....', '.SSS..SSS....'];
+  var pal = { y: '#f8d000', Y: '#b0b0b8', r: '#c01828', o: '#e87820', O: '#a04810', k: '#000000', R: '#f83800', w: '#fcfcfc',
+    m: '#901c30', M: '#601020', s: '#c88858', S: '#701828' };
+  var a = makeSpriteP(rows, pal);
+  return { r: a, l: flipC(a) };
+})();
 var CAR_COLS = ['#d82800', '#2858f0', '#f8d800', '#38b818', '#fcfcfc', '#303030', '#f87800', '#8030d0', '#1fb8a0'];
 // how Dre plays each game: err = how far off his shot power is, think = seconds he takes to line up, three = how often he goes deep
 var AI_SKILL = {
@@ -1727,7 +1742,7 @@ function StreetGame(){
       var s = G.queue.shift();
       if (s.fn){ s.fn(); continue; }
       G.step = s;
-      if (s.say) G.ui = { name: s.say, text: s.text, shown: 0, col: TALK_COLS[s.say] };
+      if (s.say) G.ui = { name: s.say, text: s.text, shown: 0, col: TALK_COLS[s.say], face: TALK_FACES[s.say] };
       else if (s.menu) G.ui = { name: s.name, text: s.menu, bill: s.bill, opts: s.opts, sel: firstOn(s.opts), col: TALK_COLS[s.name] };
       else G.ui = null;
       if (s.wait) s.t = s.wait;
@@ -1836,7 +1851,7 @@ function StreetGame(){
       say('DRE', G.powered ? 'WHAT?! HOW DID YOU DO THAT?!' : 'WHAT?! NO WAY!'),
       { fn: function(){ run([say('DRE', "A DEAL'S A DEAL. HERE'S $" + money(G.paid + 20) + '.'), { fn: function(){ payMe(G.paid + 20); } }, { wait: 1 }]); } },
       say('YOU', 'GOOD GAME!')].concat(G.powered ? [say('CARL', 'TOLD YOU. SPECIAL DRINK.')] : []).concat([
-      { fn: function(){ G.clearText = 'BOARD COMPLETE!'; G.done = true; } }]);
+      { fn: startShootaround }]);
   }
   function waterMenu(){
     return { name: 'CARL', menu: 'CASH, TAP, OR CREDIT CARD?', bill: [['WATER', 2]], opts: [
@@ -1880,6 +1895,98 @@ function StreetGame(){
           { fn: function(){ startMatch(3); } }]));
       } };
   }
+  /* ---------- after the final game: shoot around, the parrot, and King Hooper ---------- */
+  var K = { h: newHero(-24), go: null };
+  G.parrot = null; G.parrotT = 0; G.storm = 0; G.stormTo = 0; G.flash = 0; G.lastShot = false;
+  function startShootaround(){
+    G.phase = 'free'; G.left = 20; G.parrotT = 5; G.streak = 0;
+    A.go = -40; V.go = -70;                                               // Dre and Carl head home
+    addCheer(G.pops, W / 2, 40, 'SHOOT AROUND!');
+    addPop(G.pops, W / 2, 56, 'THE COURT IS ALL YOURS', '#fcfcfc');
+  }
+  function lastShot(){
+    G.phase = 'last';
+    if (!G.parrot) spawnParrot();
+    addCheer(G.pops, W / 2, 40, 'LAST SHOT!');
+    addPop(G.pops, W / 2, 56, 'TAKE ONE MORE', '#fcfcfc');
+    if (me.ball.live){ me.ball.parrot = true; G.lastShot = true; }      // the shot already in the air is the last one
+  }
+  function squawk(){ tone(1400, 0.12, 'sawtooth', 0.04, -600); tone(1700, 0.15, 'sawtooth', 0.04, -900, 0.14); }
+  function thunder(){ G.flash = 0.18; hiss(1.2, 0.09, 180); tone(55, 1.1, 'sawtooth', 0.05, -15); }
+  function trumpets(){ var n = [392, 392, 523, 659, 784], d = [0.12, 0.12, 0.25, 0.25, 0.6], at = 0; for (var i = 0; i < n.length; i++){ tone(n[i], d[i], 'sawtooth', 0.045, 0, at); tone(n[i] / 2, d[i], 'square', 0.03, 0, at); at += d[i] + 0.03; } }
+  function spawnParrot(){ G.parrot = { x: -14, y: 34, dir: 1, f: 0, t: 0, st: 'fly' }; squawk(); }
+  function stepParrot(dt){
+    if (G.phase === 'free' && !G.parrot && (G.parrotT -= dt) <= 0) spawnParrot();
+    var pr = G.parrot;
+    if (!pr) return;
+    pr.t += dt; pr.f += dt * (pr.st === 'dazed' ? 4 : 12);
+    if (pr.st === 'fly'){
+      pr.x += pr.dir * 45 * dt; pr.y = 34 + Math.sin(pr.t * 2) * 8;
+      if ((pr.x > W - 24 && pr.dir > 0) || (pr.x < 24 && pr.dir < 0 && pr.t > 2)) pr.dir = -pr.dir;
+    } else if (pr.st === 'dazed'){
+      pr.y += Math.max(0, 12 - pr.t * 10) * dt;
+    } else if (pr.st === 'away'){
+      pr.x += 80 * dt; pr.y -= 50 * dt; pr.dir = 1;
+    } else if (pr.st === 'return' || pr.st === 'perch'){
+      // home to the top of the King's scepter
+      var tx = K.h.x + K.h.face * 7, ty = K.h.y - 33, dx = tx - pr.x, dy = ty - pr.y, d = hyp(dx, dy);
+      if (pr.st === 'perch' || d < 2){ pr.st = 'perch'; pr.x = tx; pr.y = ty; pr.dir = K.h.face; }
+      else { pr.x += dx / d * 70 * dt; pr.y += dy / d * 70 * dt; pr.dir = dx > 0 ? 1 : -1; }
+    }
+  }
+  function parrotHit(b){
+    var pr = G.parrot;
+    pr.st = 'dazed'; pr.t = 0;
+    b.parrot = false; b.shot = false; b.live = false; b.vx = -b.vx * 0.3; b.vy = -40;
+    burst(G.parts, pr.x, pr.y + 3, 22, ['#e02818', '#2060e0', '#f8d800', '#30c030', '#fcfcfc'], 60, 60, 1.2);
+    addPop(G.pops, pr.x, pr.y - 10, 'BONK!', '#fcfc78', true);
+    G.shake = 0.3; G.phase = 'story'; G.meter = null;
+    squawk(); tone(300, 0.2, 'square', 0.05, -150, 0.3);
+    var spot = clamp(p.x > 90 ? p.x - 46 : p.x + 46, 24, 200);
+    run([{ wait: 2.2 },
+      { fn: function(){ pr.st = 'away'; squawk(); addPop(G.pops, pr.x, pr.y - 10, 'SQUAWK!!', '#f86060'); } }, { wait: 1.4 },
+      { fn: function(){ G.stormTo = 1; thunder(); G.pigeons.forEach(function(q){ if (q.st === 'sit') flyOff(q); }); } }, { wait: 1.8 },
+      { fn: trumpets }, { walk: K, to: spot },
+      { fn: function(){ K.h.face = p.x > K.h.x ? 1 : -1; p.face = -K.h.face; thunder(); G.shake = 0.6; } },
+      say('KING HOOPER', 'WHO DARES BONK MY PARROT?!'),
+      { fn: function(){ pr.st = 'return'; pr.x = W + 12; pr.y = 20; squawk(); } },
+      say('KING HOOPER', 'THAT WAS MY FAVORITE BIRD IN THE WHOLE KINGDOM!'),
+      say('YOU', "I'M SORRY! IT WAS AN ACCIDENT!"),
+      { fn: thunder },
+      say('KING HOOPER', 'LISTEN TO ME!'),
+      say('KING HOOPER', 'I AM KING HOOPER, RULER OF EVERY COURT IN THE LAND.'),
+      say('KING HOOPER', 'TO EARN MY FORGIVENESS, YOU MUST PLAY ALL OF MY COURTS...'),
+      say('KING HOOPER', '...AND SCORE THE HIGHEST YOU CAN ON EACH ONE!'),
+      say('KING HOOPER', 'FIRST STOP: MY GYM. NOW GO!'),
+      { fn: function(){ thunder(); G.clearText = 'BOARD COMPLETE!'; G.done = true; } }]);
+  }
+  function drawKing(c){
+    var h = K.h;
+    if (h.x < -16 || h.x > W + 16) return;
+    var x = Math.round(h.x), y = Math.round(h.y) - (h.vx && Math.floor(h.anim) % 2 ? 1 : 0), f = h.face, bk = x - f * 6;
+    // the cape flows out behind him
+    c.fillStyle = '#000'; c.fillRect(Math.min(bk, bk - f * 3) - 1, y - 12, 5, 11);
+    c.fillStyle = '#601020'; c.fillRect(Math.min(bk, bk - f * 3), y - 11, 4, 9);
+    c.fillStyle = '#f8d000'; c.fillRect(Math.min(bk, bk - f * 3), y - 3, 4, 1);
+    c.drawImage(f > 0 ? KING_SPRITE.r : KING_SPRITE.l, f > 0 ? x - 5 : x - 8, y - 21);
+    // the scepter, topped with a glowing basketball
+    var sx = x + f * 7;
+    c.fillStyle = '#000'; c.fillRect(sx - 1, y - 27, 3, 27);
+    c.fillStyle = '#9aa0aa'; c.fillRect(sx, y - 26, 1, 26);
+    c.fillStyle = 'rgba(248,200,80,' + (0.35 + 0.2 * Math.sin(G.t * 6)).toFixed(2) + ')'; c.fillRect(sx - 4, y - 33, 9, 8);
+    drawBall(c, sx, y - 29, 0, 0);
+  }
+  function drawParrot(c){
+    var pr = G.parrot;
+    if (!pr) return;
+    var fr = BIRDS[2].fr[pr.st === 'perch' ? 0 : Math.floor(pr.f) % 2], img = pr.dir > 0 ? fr.r : fr.l;
+    if (pr.st === 'dazed'){
+      c.save(); c.translate(Math.round(pr.x), Math.round(pr.y + 3)); c.rotate(pr.t * 9); c.drawImage(img, -7, -4); c.restore();
+      c.fillStyle = '#f8d800';
+      for (var k = 0; k < 3; k++){ var a = pr.t * 5 + k * 2.1; c.fillRect(Math.round(pr.x + Math.cos(a) * 7), Math.round(pr.y - 6 + Math.sin(a) * 2), 1, 1); }
+    } else c.drawImage(img, Math.round(pr.x - 7), Math.round(pr.y - (img.height > 8 ? 1 : 0)));
+  }
+
   function powerUp(){
     G.powered = true;
     addCheer(G.pops, W / 2, 36, 'MAGIC POWERS!!');
@@ -1898,6 +2005,8 @@ function StreetGame(){
     if (magic){ var bp = bestPower(h.x + h.face * 2, h.y - 17, h.face); if (bp >= 0) pw = bp; }
     var v = 165 + pw * 105;
     b.free = true; b.live = true; b.scored = false; b.from = h.x; b.noPick = 0.6; b.rest = 0; b.ret = false; b.shot = true; b.magic = magic;
+    b.parrot = S === me && G.phase === 'last';
+    if (b.parrot) G.lastShot = true;
     b.x = h.x + h.face * 2; b.y = h.y - 17;
     b.vx = h.face * v * Math.cos(ANG); b.vy = -v * Math.sin(ANG);
     S.has = false; S.noBallT = 0;
@@ -1930,7 +2039,7 @@ function StreetGame(){
     b.scored = true; b.shot = false; b.ret = true; b.vx *= 0.3; G.netT = 0.5;
     burst(G.parts, GYM_HX, hp.y + 4, 14, ['#f8d800', '#fcfcfc', '#58f878'], 60, 40, 0.8);
     sfx.swish();
-    if (G.phase !== 'warm' && G.phase !== 'match') return;              // only counts while the clock is running
+    if (G.phase !== 'warm' && G.phase !== 'match' && G.phase !== 'free' && G.phase !== 'last') return;   // only counts while you're out there shooting
     var long = Math.abs(b.from - GYM_HX) > LONG_SHOT;
     if (b.own === 'me'){
       var pts = long ? 3 : 2, label = long ? 'THREE!' : pick(['SWISH!', 'BUCKET!', 'NOTHIN NET!', 'CASH!']);
@@ -1964,7 +2073,13 @@ function StreetGame(){
     b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR;
     // a magic shot steers itself into the middle of the rim on the way down
     if (b.magic && b.live && !b.scored && b.vy > 0 && b.y > hp.y - 40) b.x += (GYM_HX - b.x) * Math.min(1, h * 8);
-    if (b.live && !b.scored && py < hp.y && b.y >= hp.y && b.x > hp.rl && b.x < hp.rr) made(b);
+    if (b.parrot && G.parrot && (G.parrot.st === 'fly')){
+      // the last shot of the day finds the parrot, wherever you aimed
+      var pr = G.parrot, pdx = pr.x - b.x, pdy = pr.y + 3 - b.y, pd = hyp(pdx, pdy) || 1, psp = Math.max(170, hyp(b.vx, b.vy)), pk = Math.min(1, h * 5);
+      b.vx += (pdx / pd * psp - b.vx) * pk; b.vy += (pdy / pd * psp - b.vy) * pk - BALL_G * h;
+      if (pd < 7){ parrotHit(b); return; }
+    }
+    if (b.live && !b.scored && !b.parrot && py < hp.y && b.y >= hp.y && b.x > hp.rl && b.x < hp.rr) made(b);
     var posts = [hp.rl, hp.rr];
     for (i = 0; i < 2; i++){
       var px = posts[i], dx = b.x - px, dy = b.y - hp.y, d = hyp(dx, dy);
@@ -2095,7 +2210,7 @@ function StreetGame(){
       else if (s.walk){ s.walk.go = s.to; if (Math.abs(s.walk.h.x - s.to) < 1.5){ s.walk.go = null; nextStep(); } }
       else if (s.wait){ s.t -= dt; if (s.t <= 0) nextStep(); }
     }
-    var play = G.phase === 'warm' || G.phase === 'match';
+    var play = G.phase === 'warm' || G.phase === 'match' || G.phase === 'free' || G.phase === 'last';
     var mv = play && !(G.meter && p.ground) ? (inp.l ? -1 : (inp.r ? 1 : 0)) : 0;
     p.jumpHeld = inp.a || inp.u;
     stepHero(G, p, dt, mv);
@@ -2114,6 +2229,11 @@ function StreetGame(){
     if (me.drink && (me.drink.t -= dt) <= 0) me.drink = null;
     if (A.drink && (A.drink.t -= dt) <= 0) A.drink = null;
     if (G.powered && Math.random() < dt * 20) burst(G.parts, p.x + rand(-4, 4), p.y - rand(0, 14), 1, MAGIC_COLS, 8, -20, 0.6);
+    walkBot(K, dt);
+    stepParrot(dt);
+    G.storm += (G.stormTo - G.storm) * Math.min(1, dt * 1.2);
+    G.flash = Math.max(0, G.flash - dt);
+    if (G.stormTo > 0 && Math.random() < dt * 0.25) thunder();
     if (G.powered && G.phase === 'match' && me.has && !p.ground && Math.abs(p.x - GYM_HX) < 12 && p.y > hp.y - 6 && p.y < hp.y + 18) dunk();
     for (i = 0; i < balls.length; i++){
       var b = balls[i];
@@ -2124,7 +2244,12 @@ function StreetGame(){
     stepFx(G.parts, G.pops, dt);
     if (play){
       G.left -= dt;
-      if (G.left <= 0){ G.left = 0; if (G.phase === 'warm') endWarm(); else endMatch(); }
+      if (G.left <= 0 && G.phase !== 'last' && G.phase !== 'story'){
+        G.left = 0;
+        if (G.phase === 'warm') endWarm();
+        else if (G.phase === 'free') lastShot();
+        else endMatch();
+      }
     }
   };
 
@@ -2159,6 +2284,8 @@ function StreetGame(){
       c.drawImage(pg.face > 0 ? fr.r : fr.l, Math.round(pg.x - 4), Math.round(pg.y - (pg.st === 'sit' ? 6 : 3)));
     }
     drawStreetHoop(c);
+    if (G.storm > 0.01){ c.fillStyle = 'rgba(16,18,40,' + (G.storm * 0.55).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+    drawKing(c);
     if (V.h.x > -40){ drawCart(c, Math.round(V.h.x + 14), FLOOR); drawPerson(c, V, false); }
     drawPerson(c, A, (A.has && (!!A.meter || !A.h.ground)) || !!A.drink);
     drawHero(c, G.look, p, (me.has && (!!G.meter || !p.ground)) || !!me.drink);
@@ -2167,17 +2294,25 @@ function StreetGame(){
     if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
     if (A.meter) drawMeter(c, A.h.x, A.h.y, A.meter.p);
     for (i = 0; i < balls.length; i++) if (balls[i].x > -10) drawBall(c, balls[i].x, balls[i].y, balls[i].rot, balls[i].k);
+    drawParrot(c);
     drawParts(c, G.parts);
-    if (G.phase === 'match' || (G.match && G.phase === 'story' && !G.ui)){
+    if (G.storm > 0.05){
+      c.fillStyle = 'rgba(170,190,230,' + (G.storm * 0.6).toFixed(2) + ')';
+      for (i = 0; i < 70; i++){ var rx = (i * 37 + G.t * 90) % (W + 20) - 10, ry = (i * 53 + G.t * 260) % (H + 10) - 10; c.fillRect(Math.round(rx), Math.round(ry), 1, 4); }
+    }
+    if (G.flash > 0){ c.fillStyle = 'rgba(255,255,240,' + (G.flash * 2.5).toFixed(2) + ')'; c.fillRect(0, 0, W, H); }
+    if (G.phase === 'match' || (G.match && G.phase === 'story' && !G.ui && !G.storm)){
       c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(W / 2 - 46, 2, 92, 13);
       vText(v, 'YOU ' + G.me + '  -  ' + G.them + ' DRE', W / 2, 9, '#fcfcfc', nameSize(v));
     }
+    if (K.h.x > -4 && K.h.x < W + 4) vText(v, 'KING HOOPER', K.h.x, Math.min(H - 5, K.h.y + 6), '#f8c000', Math.round(nameSize(v) * 0.8));
     if (A.h.x > -4 && A.h.x < W + 4) vText(v, 'DRE', A.h.x, Math.min(H - 5, A.h.y + 6), '#f87858', Math.round(nameSize(v) * 0.8));
     if (V.h.x > -4 && V.h.x < W + 4) vText(v, 'CARL', V.h.x, Math.min(H - 5, V.h.y + 6), '#f8d800', Math.round(nameSize(v) * 0.8));
     drawPops(v, G.pops);
   };
   G.press = function(k){
-    if (G.phase !== 'warm' && G.phase !== 'match') return;
+    if (G.phase !== 'warm' && G.phase !== 'match' && G.phase !== 'free' && G.phase !== 'last') return;
+    if (G.phase === 'last' && G.lastShot && k === 'shoot') return;
     if (k === 'jump') heroJump(G, p);
     else if (k === 'drop') heroDrop(p);
     else if (k === 'shoot'){
@@ -2189,10 +2324,11 @@ function StreetGame(){
   };
   G.release = function(k){ if (k === 'shoot' && G.meter && me.has) shootBall(me, G.meter.p); };
   G.hud = function(){
+    if (G.phase === 'free' || G.phase === 'last') return { balls: -1, info: G.phase === 'free' ? 'SHOOT AROUND' : 'LAST SHOT!', time: G.phase === 'free' ? fmt(G.left) : '', cash: G.cash, card: G.card };
     var info = G.phase === 'warm' ? 'WARM UP' : (G.phase === 'match' ? (G.match === 1 ? 'GAME 1: $20' : (G.match === 2 ? 'DOUBLE OR NOTHING' : 'FINAL GAME')) + (G.powered && G.phase === 'match' ? ' MAGIC!' : '') : '');
     return { balls: -1, info: info, time: G.phase === 'warm' || G.phase === 'match' ? fmt(G.left) : '', cash: G.cash, card: G.card };
   };
-  G.startMatch = startMatch;                                          // jump straight to a game (handy for testing)
+  G.startMatch = startMatch; G.startShootaround = startShootaround; G.nextFirst = true;                                          // jump straight to a game (handy for testing)
   G.resultHtml = function(){
     return '<p style="color:#58f878">CASH $' + money(G.cash) + '</p>' + (G.card > 0 ? '<p style="color:#f86060">CREDIT CARD -' + usd(G.card) + '</p>' : '');
   };
@@ -2318,9 +2454,12 @@ function finish(){
   var B = BOARDS[boardIdx], bs = bests(), best0 = bs[B.id] || 0, sc = game.score, isBest = sc > best0;
   if (isBest){ bs[B.id] = sc; store(BEST_KEY, bs); }
   mode = 'over';
+  var nextB = boardIdx < BOARDS.length - 1 ? '<button' + (game.nextFirst ? '' : ' class="sm"') + ' data-act="next">NEXT BOARD &#9654;</button>' : '';
+  var againB = '<button' + (game.nextFirst && nextB ? ' class="sm"' : '') + ' data-act="again">AGAIN</button>';
+  var btns = (game.nextFirst ? nextB + againB : againB + nextB) + '<button class="sm" data-act="menu">BOARDS</button>';
   showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + ': ' + B.name + '</p><h1>' + (isBest ? 'NEW BEST!' : 'NICE!') + '</h1><p>SCORE ' + sc + '</p>' +
-    (game.resultHtml ? game.resultHtml() : '') + '<p class="how">BEST ' + Math.max(best0, sc) + '</p><div class="row"><button data-act="again">AGAIN</button><button class="sm" data-act="menu">BOARDS</button></div>',
-    { again: startBoard, menu: goTitle });
+    (game.resultHtml ? game.resultHtml() : '') + '<p class="how">BEST ' + Math.max(best0, sc) + '</p><div class="row">' + btns + '</div>',
+    { again: startBoard, menu: goTitle, next: function(){ selectBoard(boardIdx + 1, true); startBoard(); } });
   if (isBest) sfx.fanfare();
 }
 
@@ -2487,6 +2626,8 @@ function renderTalk(){
     talkKey = key; talkShown = -1; talkSel = -1;
     if (u){
       $('tName').textContent = u.name; $('tName').style.color = u.col || '#fcfcfc';
+      if (u.face && $('tFace').getAttribute('src') !== u.face) $('tFace').setAttribute('src', u.face);
+      $('tFace').classList.toggle('on', !!u.face);
       var bill = '';
       if (u.bill){
         var tot = 0;
