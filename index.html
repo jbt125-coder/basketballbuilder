@@ -2467,16 +2467,24 @@ function iceBg(){
   c.fillStyle = '#000'; c.fillRect(0, 0, W, ICE_CEIL + 1);
   c.fillStyle = '#9cd4f0'; c.fillRect(0, 0, W, ICE_CEIL);
   c.fillStyle = '#e0f6ff'; for (i = 0; i < 30; i++) c.fillRect(Math.floor(r() * W), Math.floor(r() * (ICE_CEIL - 2)), 3, 1);
-  for (x = 2; x < W; x += 5 + Math.floor(r() * 6)){
-    var len = 3 + Math.floor(r() * 12), w2 = 2 + Math.floor(r() * 2);
-    for (var yy2 = 0; yy2 < len; yy2++){
-      var ww = Math.max(1, Math.round(w2 * (1 - yy2 / len) * 2));
-      c.fillStyle = '#000'; c.fillRect(x - 1, ICE_CEIL + yy2, ww + 2, 1);
-      c.fillStyle = yy2 % 3 ? '#c8ecfc' : '#e8f8ff'; c.fillRect(x, ICE_CEIL + yy2, ww, 1);
-    }
-  }
   ICE_BG = cv;
   return cv;
+}
+/* the icicles hanging from the ceiling: knock one with a shot and it falls */
+function makeIcicles(){
+  var list = [], seed = 47, x;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  for (x = 2; x < W - 2; x += 5 + Math.floor(r() * 6)) list.push({ x: x, len: 3 + Math.floor(r() * 12), w2: 2 + Math.floor(r() * 2), st: 'hang', g: 1, y: 0, vy: 0, delay: 0, regrowT: 0, by: '' });
+  return list;
+}
+function drawIcicle(c, ic, top){
+  var len = Math.max(1, Math.round(ic.len * ic.g)), x = Math.round(ic.x);
+  for (var yy = 0; yy < len; yy++){
+    var ww = Math.max(1, Math.round(ic.w2 * (1 - yy / len) * 2));
+    c.fillStyle = '#000'; c.fillRect(x - 1, top + yy, ww + 2, 1);
+    c.fillStyle = yy % 3 ? '#c8ecfc' : '#e8f8ff'; c.fillRect(x, top + yy, ww, 1);
+  }
+  c.fillStyle = '#000'; c.fillRect(x, top + len, 1, 1);
 }
 function drawIceHoop(c, g, netT){
   var ax = Math.round(g.cx), ay = ICE_CEIL + 1, k;
@@ -2617,7 +2625,7 @@ function drawSnowman(c, S, t){
 function IceGame(){
   var G = newWorld(), p = newHero(60);
   G.hero = p; G.look = LOOK; G.left = ICE_SECS; G.ice = true; G.me = 0; G.them = 0; G.streak = 0; G.bonks = 0;
-  G.mballs = []; G.netH = -1;
+  G.mballs = []; G.netH = -1; G.icicles = makeIcicles();
   function mkBall(k, own){ return { k: k, own: own, x: -30, y: FLOOR - BR, vx: 0, vy: 0, rot: 0, free: false, live: false, noPick: 0, rest: 0 }; }
   var me = { h: p, ball: mkBall(0, 'me'), has: true, noBallT: 0, top: 17 };
   var B = { h: newHero(200), ball: mkBall(2, 'bear'), has: true, noBallT: 0, top: 31, meter: null, spot: null, dunk: null, dunkPlan: false, hoop: 0, thinkT: 0, target: 0 };
@@ -2660,7 +2668,7 @@ function IceGame(){
     O.noBallT += dt;
     if (b.live) return;
     if (h.ground && b.free && b.noPick <= 0 && Math.abs(b.vx) < 30 && Math.abs(b.vy) < 1 && Math.abs(b.x - h.x) < 9 && Math.abs(b.y + BR - h.y) < 4){ grab(O); return; }
-    if (O.noBallT > (O === me ? 3 : 2.5)){                                // a ball that slid away pops back to you
+    if (O.noBallT > (O === me ? 3 : 1.5)){                                // a ball that slid away pops back to you
       burst(G.parts, b.x, b.y, 8, ['#fcfcfc', '#a8daf4'], 40, 0, 0.4);
       grab(O);
       if (O === me) addPop(G.pops, p.x, p.y - 22, 'NEW BALL', '#fcfcfc');
@@ -2721,7 +2729,15 @@ function IceGame(){
         }
       });
     }
-    if (b.y < ICE_CEIL + BR + 3 && b.vy < 0){ b.y = ICE_CEIL + BR + 3; b.vy = -b.vy * 0.5; tone(2400, 0.06, 'triangle', 0.03); }   // clink off the icicles
+    if (b.vy < 0 && b.y < ICE_CEIL + 18){
+      for (i = 0; i < G.icicles.length; i++){
+        var ic = G.icicles[i];
+        if (ic.st === 'hang' && b.x > ic.x - BR && b.x < ic.x + ic.w2 * 2 + BR && b.y - BR < ICE_CEIL + ic.len * 0.75){
+          dropIcicle(ic, 0, b.own); b.vy = Math.abs(b.vy) * 0.4; break;
+        }
+      }
+    }
+    if (b.y < ICE_CEIL + BR + 3 && b.vy < 0){ b.y = ICE_CEIL + BR + 3; b.vy = -b.vy * 0.5; tone(2400, 0.06, 'triangle', 0.03); }   // clink off the ceiling
     if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
     if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
     // the snowman swats your shots: his body, or his stick arms when they're up
@@ -2745,19 +2761,59 @@ function IceGame(){
     b.rest = b.vy === 0 && b.vx === 0 ? b.rest + h : 0;
   }
 
+  /* ---------- icicles: they snap off, fall, shatter, and grow back ---------- */
+  function dropIcicle(ic, delay, by){
+    ic.st = 'fall'; ic.y = 0; ic.vy = 0; ic.delay = delay; ic.by = by;
+    if (!delay) tone(2600, 0.08, 'triangle', 0.04, -800);
+  }
+  function stepIcicles(dt){
+    for (var i = 0; i < G.icicles.length; i++){
+      var ic = G.icicles[i];
+      if (ic.st === 'fall'){
+        if (ic.delay > 0){ ic.delay -= dt; if (ic.delay <= 0) tone(2600 - (i % 5) * 200, 0.06, 'triangle', 0.025, -800); continue; }
+        ic.vy += 320 * dt; ic.y += ic.vy * dt;
+        var tx = ic.x + ic.w2, ty = ICE_CEIL + ic.y + ic.len;
+        // a falling icicle bonks whoever it lands on
+        if (Math.abs(tx - p.x) < 5 && ty > p.y - 15 && ty < p.y && !G.hang()){ hurtHero(G, p, tx, 'ICICLE!'); breakIcicle(ic, tx, ty); continue; }
+        if (!B.dunk && Math.abs(tx - B.h.x) < 8 && ty > B.h.y - 24 && ty < B.h.y){
+          B.stun = 1.6; B.meter = null; B.spot = null;
+          if (ic.by === 'me'){ gain(3); addPop(G.pops, B.h.x, B.h.y - 34, 'BEAR BONKED! +3', '#fcfc78'); } else addPop(G.pops, B.h.x, B.h.y - 34, 'BONK!', '#c8e0ff');
+          tone(120, 0.3, 'sawtooth', 0.05, -60);
+          breakIcicle(ic, tx, ty); continue;
+        }
+        if (Math.abs(tx - S.x) < 9 && ty > FLOOR - 44 && ty < FLOOR - 20){
+          S.mood = 'sad'; S.moodT = 1.5; S.shiver = 0.5;
+          if (ic.by === 'me'){ gain(3); addPop(G.pops, S.x, FLOOR - 52, 'SNOWMAN BONKED! +3', '#fcfc78'); } else addPop(G.pops, S.x, FLOOR - 52, 'HEY!', '#d8f2ff');
+          breakIcicle(ic, tx, ty); continue;
+        }
+        if (ty >= FLOOR) breakIcicle(ic, tx, FLOOR - 2);
+      } else if (ic.st === 'gone'){
+        if ((ic.regrowT -= dt) <= 0){ ic.st = 'grow'; ic.g = 0; }
+      } else if (ic.st === 'grow'){
+        ic.g = Math.min(1, ic.g + dt / 2);
+        if (ic.g >= 1) ic.st = 'hang';
+      }
+    }
+  }
+  function breakIcicle(ic, x, y){
+    ic.st = 'gone'; ic.g = 0; ic.regrowT = G.magic && G.magic.gone ? rand(3, 4) : rand(6, 10);
+    burst(G.parts, x, y, 10, ['#e8f8ff', '#c8ecfc', '#fcfcfc', '#88c4e4'], 50, 160, 0.7);
+    hiss(0.15, 0.05, 3500); tone(1800 + rand(0, 600), 0.05, 'triangle', 0.03, -600);
+  }
+
   /* ---------- the polar bear: slow on the ice, strong from close up ---------- */
   function bearThink(dt){
     var h = B.h, mv = 0;
     if (!B.has){
       var b = B.ball;
       B.spot = null;
-      if (!b.live && b.free && b.noPick <= 0 && Math.abs(b.x - h.x) > 3) mv = (b.x < h.x ? -1 : 1) * 0.55;
+      if (!b.live && b.free && b.noPick <= 0 && Math.abs(b.x - h.x) > 3) mv = (b.x < h.x ? -1 : 1) * 0.85;
     } else if (B.meter){
-      B.meter.p += dt / 1.4;
+      B.meter.p += dt / 0.65;
       if (B.meter.p >= B.target) shootBall(B, B.meter.p);
     } else if (B.spot == null){
       var r = Math.random();
-      B.hoop = r < 0.5 ? 0 : (r < 0.82 ? 2 : 1);
+      B.hoop = r < 0.55 ? 0 : (r < 0.9 ? 2 : 1);
       B.dunkPlan = B.hoop === 0 && Math.random() < 0.3;                    // the low hoop: sometimes he takes it right to the rim
       if (B.dunkPlan){ B.spot = ICE_HOOPS[0].x; B.thinkT = 0.3; return mv; }
       // try spots, closest first, until he finds one he can make the shot from
@@ -2766,9 +2822,9 @@ function IceGame(){
         var sx = clamp(hh.x + (Math.random() < 0.5 ? -1 : 1) * (40 + tries * 5 + rand(0, 8)), 14, W - 14), sf = hh.x > sx ? 1 : -1;
         if (bestPowerAt(sx + sf * 2, FLOOR - B.top, sf, hh.x, hh.y) >= 0) B.spot = sx;
       }
-      B.thinkT = rand(1, 1.6);
+      B.thinkT = rand(0.2, 0.45);
     } else if (Math.abs(h.x - B.spot) > 4){
-      mv = (B.spot < h.x ? -1 : 1) * 0.55;
+      mv = (B.spot < h.x ? -1 : 1) * 0.85;
     } else if (Math.abs(h.vx) < 6){
       B.thinkT -= dt;
       if (B.thinkT <= 0 && B.dunkPlan){ B.dunkPlan = false; B.spot = null; B.dunk = { t: 0, x0: h.x, slam: false }; tone(160, 0.3, 'sawtooth', 0.04, 200); return 0; }
@@ -2777,7 +2833,7 @@ function IceGame(){
         h.face = g.cx > h.x ? 1 : -1;
         var bp = bestPowerAt(h.x + h.face * 2, h.y - B.top, h.face, (g.rl + g.rr) / 2, g.y);
         if (bp < 0) B.spot = null;
-        else { B.target = clamp(bp + gauss() * 0.03, 0.02, 1); B.meter = { p: 0, dir: 1 }; }
+        else { B.target = clamp(bp + gauss() * 0.022, 0.02, 1); B.meter = { p: 0, dir: 1 }; }
       }
     }
     return mv;
@@ -2916,6 +2972,7 @@ function IceGame(){
   }
   function shatter(){
     var M = G.magic;
+    G.icicles.forEach(function(ic){ if (ic.st === 'hang' || ic.st === 'grow'){ ic.g = 1; dropIcicle(ic, rand(0.1, 0.9), 'me'); } });
     M.gone = true; M.turbo = null; M.endT = 1.6;
     gain(SHATTER_PTS);
     ICE_DUNKS.forEach(function(d){ burst(G.parts, d.x, d.y - 10, 30, ['#c8f0ff', '#fcfcfc', '#80d8f8'], 80, 220, 1.4); });
@@ -2973,7 +3030,8 @@ function IceGame(){
         if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
       }
     }
-    if (B.dunk) stepBearDunk(dt); else stepHero(G, B.h, dt, bearThink(dt));
+    if (B.stun > 0){ B.stun -= dt; stepHero(G, B.h, dt, 0); }
+    else if (B.dunk) stepBearDunk(dt); else stepHero(G, B.h, dt, bearThink(dt));
     if (me.has) holdBall(me, dt, !!G.meter || G.hang()); else looseBall(me, dt);
     if (B.has){
       var bb = B.ball, bf = B.h.face;
@@ -2986,6 +3044,7 @@ function IceGame(){
       }
     } else looseBall(B, dt);
     stepSnowman(dt);
+    stepIcicles(dt);
     stepPenguins(dt);
     stepMagicBalls(dt);
     for (i = 0; i < balls.length; i++){
@@ -3008,6 +3067,11 @@ function IceGame(){
     c.drawImage(iceBg(), 0, 0);
     for (i = 0; i < 3; i++) drawIceHoop(c, gs[i], G.netH === i ? G.netT : 0);
     if (M && !M.gone) for (i = 0; i < 3; i++) drawGlassHoop(c, ICE_DUNKS[i], M.cracks[i], t, 0);
+    for (i = 0; i < G.icicles.length; i++){
+      var icl = G.icicles[i];
+      if (icl.st === 'hang' || icl.st === 'grow' || (icl.st === 'fall' && icl.delay > 0)) drawIcicle(c, icl, ICE_CEIL + (icl.st === 'fall' ? Math.round(Math.sin(t * 60)) * 0 : 0));
+      else if (icl.st === 'fall') drawIcicle(c, icl, Math.round(ICE_CEIL + icl.y));
+    }
     drawSnowman(c, S, t);
     var bh = B.h, bx = Math.round(bh.x), byy = Math.round(bh.y), bf = bh.face;
     var bfr = BEAR.frames[!bh.ground ? 2 : (Math.abs(bh.vx) > 3 && Math.floor(bh.anim * 0.7) % 2 ? 1 : 0)];
@@ -3021,6 +3085,7 @@ function IceGame(){
     bearArm(-bf, armsUp);
     c.drawImage(bf > 0 ? bfr.r : bfr.l, bx - 9, byy - 23);
     bearArm(bf, armsUp);
+    if (B.stun > 0){ c.fillStyle = '#f8d800'; for (var sk = 0; sk < 3; sk++){ var sa = t * 6 + sk * 2.1; c.fillRect(Math.round(bx + Math.cos(sa) * 7), Math.round(byy - 26 + Math.sin(sa) * 2), 1, 1); } }
     for (i = 0; i < G.pengs.length; i++){
       var pg = G.pengs[i], spr;
       if (pg.st === 'slide' || pg.st === 'getup'){ spr = PENGUIN_SPR.slide; c.drawImage(pg.face > 0 ? spr.r : spr.l, Math.round(pg.x) - 5, FLOOR - 4); }
