@@ -110,6 +110,12 @@ body.touch #pad { display: flex; }
 .pb i { font-style: normal; font-size: 7px; margin-top: 5px; pointer-events: none; }
 .pb.on { box-shadow: inset 5px 5px 0 #8a1800; background: #b02000; }
 #btnA { margin-bottom: 30px; }
+#btnC { display: none; }
+body.pass #btnC { display: flex; margin-bottom: 10px; }
+body.pass #abWrap { gap: 10px; }
+body.pass .pb { width: 64px; height: 64px; }
+body.pass #dpad { zoom: 0.85; }
+body.pass #pad { padding-left: 12px; padding-right: 12px; }
 body.land #pad { position: absolute; left: 0; right: 0; bottom: 0; background: transparent; border: none; min-height: 0; pointer-events: none;
   padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
 body.land #pad > * { pointer-events: auto; opacity: .78; }
@@ -135,6 +141,7 @@ body.touch:not(.land) #pad { flex: 1; }
     <div id="dpad"><div class="dpH"></div><div class="dpV"></div>
       <span class="dpA u" id="dpU">&#9650;</span><span class="dpA d" id="dpD">&#9660;</span><span class="dpA l" id="dpL">&#9664;</span><span class="dpA r" id="dpR">&#9654;</span></div>
     <div id="abWrap">
+      <div class="pb" id="btnC"><b>C</b><i>PASS</i></div>
       <div class="pb" id="btnB"><b>B</b><i>SHOOT</i></div>
       <div class="pb" id="btnA"><b>A</b><i>JUMP</i></div>
     </div>
@@ -3642,6 +3649,11 @@ function JamGame(){
       var nd = 1e9; foes(a).forEach(function(o){ nd = Math.min(nd, dist(a, o)); });
       var m = mate(a);
       if (dh < (a.kind === 'bear' ? 40 : 28)){ layup(a); return; }
+      // Dre finds you when you're open and closer to the hoop than he is and than your defender
+      if (a === dre && me.x > -10 && G.clock > 1 && !me.dunk){
+        var mh = hyp(hx - me.x, JAM_HZ - me.z), md2 = closestFoe(me), myD = md2 ? dist(md2, me) : 99, defH = md2 ? hyp(hx - md2.x, JAM_HZ - md2.z) : 999;
+        if (mh + 10 < dh && mh + 8 < defH && myD > 16 && mh < 150 && Math.random() < dt * 4){ addPop(G.pops, W / 2, 40, 'DRE FINDS YOU!', '#f8a040'); pass(a, me); return; }
+      }
       a.think -= dt;
       // round 1: once you get close to winning, Frosty and the snowman get hot
       var hot = G.round === 1 && a.team === 1 && G.pts[0] >= 7;
@@ -3757,15 +3769,18 @@ function JamGame(){
     if (G.phase !== 'play') return true;
     if (me.dunk) return true;
     var hk = attackHoop(0);
-    if (k === 'a'){
+    if (k === 'a'){                                                       // A always jumps: for jump shots and blocks
+      if (me.h === 0) me.vh = 210;
+      return true;
+    }
+    if (k === 'c'){                                                       // C passes, or calls for the ball
       if (ball.holder === me){ if (dre.x > -10) pass(me, dre); }
       else if (ball.holder === dre){ G.callT = 0.6; addPop(G.pops, W / 2, 40, 'DRE!', '#f8a040'); }
-      else if (me.h === 0) me.vh = 210;
       return true;
     }
     if (k === 'b'){
       if (ball.holder === me){
-        if (hyp(JAM_HX[hk] - me.x, JAM_HZ - me.z) < 30) layup(me);
+        if (me.h === 0 && hyp(JAM_HX[hk] - me.x, JAM_HZ - me.z) < 30) layup(me);
         else { G.meter = { p: 0, dir: 1 }; me.face = JAM_HX[hk] > me.x ? 1 : -1; }
       } else if (!trySteal(me) && ball.holder && ball.holder.team === 1 && dist(me, ball.holder) > 14) addPop(G.pops, W / 2, 40, 'GET CLOSER TO STEAL', '#fcfcfc');
       return true;
@@ -3774,6 +3789,7 @@ function JamGame(){
   };
   G.release = function(k){ if (k === 'shoot' && G.meter && ball.holder === me) shoot(me, G.meter.p); };
   G.press = function(){};
+  G.usesPass = true;
 
   G.update = function(dt){
     var i, a;
@@ -3793,8 +3809,8 @@ function JamGame(){
       // you
       if (!me.dunk && !G.autoMe){
         if (G.meter && ball.holder === me){
-          me.vx = me.vz = 0;
-          G.meter.p += G.meter.dir * dt / 1.2;
+          if (me.h === 0){ me.vx = me.vz = 0; }
+          G.meter.p += G.meter.dir * dt / (me.h > 0 ? 0.55 : 1.2);          // faster in the air, like a jump shot on the other boards
           if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
         } else {
           var mx = (inp.r ? 1 : 0) - (inp.l ? 1 : 0), mz = (inp.d ? 1 : 0) - (inp.u ? 1 : 0), ml = hyp(mx, mz) || 1;
@@ -4530,7 +4546,7 @@ var BOARDS = [
   { id: 'ice', name: 'FROZEN HOOPS', sub: 'SLIPPERY ICE, A POLAR BEAR, A SNOWMAN ON DEFENSE, AND PENGUINS', make: IceGame,
     how: 'WALL HOOPS 2 AND 3 PTS, AND THE 5 HANGS FROM THE ICICLES &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. A BALL THAT GOES IN CAN BONK A PENGUIN: +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' },
   { id: 'jam', name: 'THE REMATCH', sub: '2 ON 2, FULL COURT: YOU AND DRE VS FROSTY AND THE SNOWMAN', make: JamGame,
-    how: 'FIRST TO 15. 2S AND 3S. 10 SECOND SHOT CLOCK.<br>&#9664; &#9654; &#9650; &#9660; RUN THE WHOLE COURT &nbsp; WITH THE BALL: HOLD SPACE TO SHOOT (CLOSE = LAYUP), Z TO PASS<br>WITHOUT IT: Z CALLS FOR THE BALL FROM DRE, OR JUMPS TO BLOCK ON DEFENSE &nbsp; SPACE STEALS' },
+    how: 'FIRST TO 15. 2S AND 3S. 10 SECOND SHOT CLOCK.<br>&#9664; &#9654; &#9650; &#9660; RUN THE WHOLE COURT<br>A (Z KEY) JUMPS &nbsp; B (SPACE) SHOOTS: HOLD AND LET GO, IN THE AIR FOR A JUMP SHOT, CLOSE = LAYUP<br>C (X KEY) PASSES TO DRE, OR CALLS FOR THE BALL &nbsp; ON DEFENSE: B STEALS, A JUMPS TO BLOCK' },
   { id: 'cyber', name: 'CYBER COURT', sub: 'A NEON MACHINE WORLD: BEAT BOLT THE ROBOT AND DODGE THE DRONE BIRDS', make: CyberGame,
     how: 'BEAT BOLT IN 2 MINUTES. MAINFRAME 3, HOLO-HOOPS 2 (THEY WARP WHEN SOMEONE SCORES)<br>RIDE THE HOVER PADS. BOLT OVERHEATS AFTER 3 SHOTS: THAT IS YOUR CHANCE<br>SHOOT DOWN DRONE BIRDS +3. RED-EYED DRONES ZAP: MOVE OFF THE RED LASER!<br>5 BASKETS OR DRONES = OVERCLOCK: SLOW TIME, LOCK-ON SHOTS, x2, AND THE UPLOAD DUNK' }
 ];
@@ -4544,7 +4560,7 @@ function controlsText(){
    INPUT: keyboard, the on-screen controller and a game controller all press the same buttons
    l r u d = arrows, a = jump, b = shoot; start and back are one-time presses
 ============================================================ */
-var inp = { l: false, r: false, u: false, d: false, a: false, b: false };
+var inp = { l: false, r: false, u: false, d: false, a: false, b: false, c: false };
 var SRC = { kb: {}, pad: {}, touch: {} };
 function setKey(src, k, on){
   var s = SRC[src]; on = !!on;
@@ -4616,6 +4632,7 @@ function startBoard(){
   var B = BOARDS[boardIdx];
   store(SEL_KEY, boardIdx);
   game = B.make();
+  document.body.classList.toggle('pass', !!game.usesPass);
   mode = 'intro'; introT = 4; hudLast = {};
   showScreen('scrGame');
   resize();
@@ -4651,6 +4668,7 @@ function finish(){
 
 function keyDown(k){
   ac();
+  if (k === 'c' && !(mode === 'play' && game && game.usesPass)) k = 'b';
   if (mode === 'title'){
     if (k === 'l' || k === 'u') selectBoard(boardIdx - 1);
     else if (k === 'r' || k === 'd') selectBoard(boardIdx + 1);
@@ -4676,10 +4694,13 @@ function keyDown(k){
     else if (k === 'a' || k === 'b' || k === 'start') panelBtns[panelIdx].click();
   }
 }
-function keyUp(k){ if (mode === 'play' && k === 'b') game.release('shoot'); }
+function keyUp(k){
+  if (k === 'c' && !(game && game.usesPass)) k = 'b';
+  if (mode === 'play' && k === 'b') game.release('shoot');
+}
 
 /* ---------- keyboard ---------- */
-var KEYMAP = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd', ' ': 'b', a: 'l', d: 'r', w: 'u', s: 'd', A: 'l', D: 'r', W: 'u', S: 'd', z: 'a', Z: 'a', x: 'b', X: 'b' };
+var KEYMAP = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd', ' ': 'b', a: 'l', d: 'r', w: 'u', s: 'd', A: 'l', D: 'r', W: 'u', S: 'd', z: 'a', Z: 'a', x: 'c', X: 'c' };
 document.addEventListener('keydown', function(e){
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P'){ e.preventDefault(); if (!e.repeat) keyDown('back'); return; }
@@ -4739,6 +4760,7 @@ function bindPad(){
     el.addEventListener('mousedown', function(){ on(); var u = function(){ document.removeEventListener('mouseup', u); off(); }; document.addEventListener('mouseup', u); });
   }
   bindBtn('btnA', 'a');
+  bindBtn('btnC', 'c');
   bindBtn('btnB', 'b');
   $('talk').onclick = function(){ ac(); if (mode === 'play' && game && game.key) game.key('a'); };
   $('hPause').onclick = function(){ ac(); if (mode === 'play') pauseGame(); else if (mode === 'pause') resume(); };
@@ -4756,11 +4778,12 @@ function pollPad(){
     now.l = b(14) || ax < -0.5; now.r = b(15) || ax > 0.5;
     now.u = b(12) || ay < -0.5; now.d = b(13) || ay > 0.5;
     now.a = b(0);                                   // A jumps
-    now.b = b(1) || b(2) || b(3) || b(7);           // B, X, Y or the right trigger shoots
+    now.b = b(2) || b(7);                           // X or the right trigger shoots
+    now.c = b(1) || b(3);                           // B or Y passes (and shoots on boards with no passing)
     now.start = b(9); now.back = b(8);
   }
   if (!padPrev){ padPrev = now; return; }           // buttons already held when the page noticed the controller don't count
-  ['l', 'r', 'u', 'd', 'a', 'b'].forEach(function(k){ if (!!now[k] !== !!padPrev[k]) setKey('pad', k, now[k]); });
+  ['l', 'r', 'u', 'd', 'a', 'b', 'c'].forEach(function(k){ if (!!now[k] !== !!padPrev[k]) setKey('pad', k, now[k]); });
   if (now.start && !padPrev.start) keyDown('start');
   if (now.back && !padPrev.back) keyDown('back');
   padPrev = now;
@@ -4784,6 +4807,14 @@ function resize(){
     st.style.alignItems = room ? 'flex-start' : '';
     fitView(view, st.clientWidth, Math.max(60, st.clientHeight - room));
   }
+  placeTalk();
+}
+// the story box goes right under the game screen (above the controller on a phone), where your eyes already are
+function placeTalk(){
+  var el = $('talk');
+  if (el.classList.contains('hide')){ el.style.top = ''; el.style.bottom = ''; return; }
+  var r = $('cv').getBoundingClientRect(), g = $('scrGame').getBoundingClientRect();
+  el.style.top = Math.round(r.bottom - g.top + 8) + 'px'; el.style.bottom = 'auto';
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', function(){ setTimeout(resize, 200); });
@@ -4831,7 +4862,7 @@ function renderTalk(){
       });
     }
     el.classList.toggle('hide', !u);
-    if (!!u !== talkOn || u){ talkOn = !!u; resize(); }
+    if (!!u !== talkOn || u){ talkOn = !!u; resize(); } else placeTalk();
   }
   if (!u) return;
   var n = u.opts ? u.text.length : Math.min(u.text.length, Math.floor(u.shown));
