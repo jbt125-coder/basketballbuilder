@@ -5311,7 +5311,7 @@ function drawEqPlat(c, q, t, lit, next, order){
 
 function EquusGame(){
   var G = newWorld(), p = newHero(40);
-  G.hero = p; G.look = LOOK; G.left = 0; G.phase = 'story'; G.lettersMe = 0; G.lettersHim = 0;
+  G.hero = p; G.look = LOOK; G.left = 0; G.phase = 'story'; G.lettersMe = 0; G.lettersHim = 0; G.hearts = 3;
   G.magic = { left: 0 };                                                   // unlimited jumps on Planet Equus, to keep up with Neighthan
   G.turn = 'none'; G.setter = 'alien'; G.req = null; G.idx = 0; G.rec = []; G.turnT = 0; G.shot = null; G.lit = []; G.round = 0; G.waitT = 0;
   G.queue = []; G.step = null; G.ui = null; G.uiRev = 0; G.inStep = false;
@@ -5479,6 +5479,14 @@ function EquusGame(){
     G.shot.ball = b;
     tone(500, 0.08, 'square', 0.03);
   }
+  function loseHeart(){
+    G.hearts--;
+    if (G.hearts <= 0){
+      G.hearts = 3;
+      addPop(G.pops, W / 2, 40, 'OUT OF HEARTS!', '#f86060', true);
+      letter('me');
+    }
+  }
   function stompFly(f){
     f.daze = 0.8;
     burst(G.parts, f.x, f.y, 10, ['#c8a838', '#38d848', '#fcfcfc'], 40, 40, 0.5);
@@ -5534,11 +5542,29 @@ function EquusGame(){
       if (f.daze > 0){ f.daze -= dt; f.y += 20 * dt; return; }
       f.ph += dt * f.sp;
       var nx = f.cx + Math.sin(f.ph) * f.rx, ny = f.cy + Math.sin(f.ph * 2) * f.ry;
-      f.dir = nx > f.x ? 1 : -1; f.x = nx; f.y = ny;
+      if (f.mode === 'attack'){
+        // an angry fly comes after you for a few seconds
+        f.at += dt;
+        var dx = p.x - f.x, dy = (p.y - 8) - f.y, d = hyp(dx, dy) || 1;
+        f.x += dx / d * 62 * dt; f.y += dy / d * 62 * dt; f.dir = dx > 0 ? 1 : -1; f.f += dt * 20;
+        if (Math.random() < dt * 4) tone(180 + Math.random() * 60, 0.1, 'sawtooth', 0.02);
+        if (f.at > 4.5) f.mode = 'return';
+        // it stings you unless you jump on it first
+        if (p.vy <= 0 || p.y < f.y - 6 || p.y > f.y + 4){
+          if (Math.abs(p.x - f.x) < 6 && p.y - 14 < f.y + 3 && p.y > f.y - 3 && !(p.inv > 0)){
+            hurtHero(G, p, f.x, 'OUCH!'); f.mode = 'return'; loseHeart();
+          }
+        }
+      } else if (f.mode === 'return'){
+        // back to its loop
+        var rx = nx - f.x, ry = ny - f.y, rd = hyp(rx, ry);
+        if (rd < 3) f.mode = null; else { f.x += rx / rd * 50 * dt; f.y += ry / rd * 50 * dt; f.dir = rx > 0 ? 1 : -1; }
+      } else { f.dir = nx > f.x ? 1 : -1; f.x = nx; f.y = ny; }
       if (Math.random() < dt * 0.3) tone(140 + Math.random() * 40, 0.15, 'sawtooth', 0.012);
       // land on a fly: it bounces you up
       if (f.daze <= 0 && p.vy > 0 && Math.abs(p.x - f.x) < 8 && p.y > f.y - 6 && p.y < f.y + 4){
         p.vy = -210; p.ground = null; p.air2 = true; p.jumpHeld = true;
+        if (f.mode === 'attack'){ f.mode = 'return'; addPop(G.pops, f.x, f.y - 20, 'CALMED IT DOWN!', '#58f878'); }
         stompFly(f); touched('fly', 0);
       }
     });
@@ -5565,8 +5591,14 @@ function EquusGame(){
       if (g.side > 0 && b.y > g.y - 22 - BR && b.y < g.y + 6 + BR && b.x + BR > g.bx && b.x < g.bx + 2 && b.vx > 0){ b.x = g.bx - BR; b.vx = -b.vx * 0.55; sfx.board(); }
       if (g.side < 0 && b.y > g.y - 22 - BR && b.y < g.y + 6 + BR && b.x - BR < g.bx + 3 && b.x > g.bx + 1 && b.vx < 0){ b.x = g.bx + 3 + BR; b.vx = -b.vx * 0.55; sfx.board(); }
     }
-    // shots bounce off the horse flies
-    if (b.live && !b.clean) flies.forEach(function(f){ if (Math.abs(b.x - f.x) < 7 && Math.abs(b.y - f.y) < 5){ b.vx *= -0.5; b.vy = -Math.abs(b.vy) * 0.4; tone(300, 0.06, 'square', 0.03); } });
+    // shots fly right through the horse flies, but your shot makes them angry
+    if (b === myBall && b.live) flies.forEach(function(f){
+      if (!f.mode && Math.abs(b.x - f.x) < 8 && Math.abs(b.y - f.y) < 6){
+        f.mode = 'attack'; f.at = 0;
+        addPop(G.pops, f.x, f.y - 10, 'BZZZ! ANGRY FLY!', '#f86060');
+        tone(160, 0.5, 'sawtooth', 0.04, 120);
+      }
+    });
     if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
     if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
     if (b.vy >= 0){
@@ -5677,6 +5709,9 @@ function EquusGame(){
     if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
     G.balls.forEach(function(b){ if (b.x > -10) drawBall(c, b.x, b.y, b.rot, b.k); });
     drawParts(c, G.parts);
+    // your hearts, bottom left
+    for (i = 0; i < 3; i++){ c.globalAlpha = i < G.hearts ? 1 : 0.25; c.drawImage(HEART, 4 + i * 9, H - 9); }
+    c.globalAlpha = 1;
     // the letters
     var ls = nameSize(v);
     for (i = 0; i < 5; i++){
@@ -5738,7 +5773,7 @@ var BOARDS = [
   { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
     how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' },
   { id: 'equus', name: 'PLANET EQUUS', sub: 'A GAME OF HUMAN AGAINST NEIGHTHAN THE HORSE ALIEN', make: EquusGame,
-    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>UNLIMITED JUMPS HERE. PLATFORMS DROP IF YOU STAND TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.' }
+    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>UNLIMITED JUMPS HERE. PLATFORMS DROP IF YOU STAND TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.<br>SHOTS GO THROUGH FLIES BUT MAKE THEM ANGRY: STOMP THEM OR LOSE A HEART (3 HEARTS = A LETTER).' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
