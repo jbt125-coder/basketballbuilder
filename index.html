@@ -151,6 +151,7 @@ body.touch:not(.land) #pad { flex: 1; }
    Board 3: hoops at the beach (Palm Court Hoops from QuizQuest)
    Board 4: in the clouds, wearing the Air Jordann's
    Board 5: frozen hoops (hanging hoops, a polar bear, a snowman and penguins)
+   Board 6: the rematch (2 on 2 full court with a zooming camera)
 ============================================================ */
 
 /* ============================================================
@@ -3264,6 +3265,546 @@ function IceGame(){
 }
 
 /* ============================================================
+   BOARD 6: THE REMATCH — 2 on 2, full court: you and Dre against Frosty and the snowman.
+   The court has depth: x runs the length of the court, z runs across it (toward the stands),
+   h is height off the floor. A camera follows everyone and zooms out as they spread apart.
+============================================================ */
+var JAM_L = 440, JAM_ZR = 236, JAM_ZK = 4.2, JAM_TOP = 100, JAM_RIM = 50, JAM_RR = 8;
+var JAM_HX = [30, JAM_L - 30], JAM_HZ = JAM_ZR / 2, JAM_3PT = 103, JAM_WIN = 15, JAM_CLOCK = 10;
+var JAM_BGX = -50, JAM_BGW = JAM_L + 100, JAM_BGH = 200;
+var JAM_TEAM_COL = ['#f8a040', '#78c8f8'];
+TALK_COLS.FROSTY = '#c8e0ff'; TALK_COLS.SNOWMAN = '#d8f2ff';
+// how each player plays: speed, how far off their shots are, and how often they reach for steals
+var JAM_KIND = {
+  me:   { speed: 82, err: 0, rel: 17, steal: 0.4 },
+  dre:  { speed: 78, err: 0.03, rel: 17, steal: 0.3, layup: 0.8 },
+  bear: { speed: 78, err: 0.035, rel: 25, steal: 0.3 },
+  snow: { speed: 74, err: 0.022, rel: 24, steal: 0.25, layup: 0.75 }
+};
+
+/* the shot along the floor: how far it travels before it comes down through rim height */
+function jamLand(pw, h0){
+  var v = 165 + pw * 105, vx = v * Math.cos(ANG), vy = v * Math.sin(ANG), x = 0, y = h0, h = 1 / 240;
+  for (var n = 0; n < 2400; n++){
+    var py = y; vy -= BALL_G * h; x += vx * h; y += vy * h;
+    if (vy < 0 && py >= JAM_RIM && y < JAM_RIM) return x;
+    if (y < 0) return null;
+  }
+  return null;
+}
+function jamPower(d, h0){
+  var best = -1, be = 1e9;
+  for (var pw = 0; pw <= 1.0001; pw += 0.005){
+    var lx = jamLand(pw, h0);
+    if (lx == null) continue;
+    if (Math.abs(lx - d) < be){ be = Math.abs(lx - d); best = pw; }
+  }
+  return be < 4 ? best : -1;
+}
+/* the polar bear in his #77 uniform, drawn standing at (x, y) */
+function drawBearAt(c, x, y, f, frame, armsUp, hasBall){
+  var fr = BEAR.frames[frame];
+  function arm(sd){
+    var sx = x + sd * 5, sy = y - 15, ex = armsUp ? x + sd * 3 + f * 2 : x + sd * 7 + (sd === f && hasBall ? 1 : 0), ey = armsUp ? y - 27 : y - 8;
+    c.fillStyle = '#000'; pxLine(c, sx - 1, sy - 1, ex - 1, ey - 1, 4);
+    c.fillStyle = '#f6f6f2'; pxLine(c, sx, sy, ex, ey, 2);
+  }
+  arm(-f);
+  c.drawImage(f > 0 ? fr.r : fr.l, x - 9, y - 23);
+  arm(f);
+}
+var JAM_BG = null;
+function jamBg(){
+  if (JAM_BG) return JAM_BG;
+  var cv = document.createElement('canvas'); cv.width = JAM_BGW; cv.height = JAM_BGH;
+  var c = cv.getContext('2d'), i, j, seed = 77, ox = -JAM_BGX;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  var FANS = ['#d82800', '#f8d800', '#2858f0', '#38b818', '#f87800', '#8030d0', '#fcfcfc', '#f05898'];
+  // the arena: dark rafters, lights, and packed stands
+  c.fillStyle = '#10142a'; c.fillRect(0, 0, JAM_BGW, JAM_BGH);
+  c.fillStyle = '#fff6c0'; for (i = 10; i < JAM_BGW; i += 40) c.fillRect(i, 4, 8, 2);
+  c.fillStyle = '#20264a'; c.fillRect(0, 12, JAM_BGW, 6);
+  for (i = 0; i < 12; i++){ c.fillStyle = FANS[i % FANS.length]; c.fillRect(20 + i * 46, 13, 30, 4); }
+  for (j = 0; j < 9; j++){
+    var y = 24 + j * 8;
+    c.fillStyle = j % 2 ? '#2a3050' : '#323858'; c.fillRect(0, y, JAM_BGW, 8);
+    for (i = 2; i < JAM_BGW - 3; i += 4 + Math.floor(r() * 3)){
+      if (r() < 0.2) continue;
+      c.fillStyle = FANS[Math.floor(r() * FANS.length)]; c.fillRect(i, y + 3, 3, 4);
+      c.fillStyle = SKINS[Math.floor(r() * SKINS.length)]; c.fillRect(i, y, 3, 3);
+    }
+  }
+  c.fillStyle = 'rgba(10,12,30,.35)'; c.fillRect(0, 24, JAM_BGW, 72);
+  // the scorer's table wall
+  c.fillStyle = '#000'; c.fillRect(0, 95, JAM_BGW, 1);
+  c.fillStyle = '#1a3a98'; c.fillRect(0, 96, JAM_BGW, 4);
+  c.fillStyle = '#f8d800'; for (i = 30; i < JAM_BGW; i += 90) c.fillRect(i, 97, 30, 2);
+  // the hardwood
+  var fy = JAM_TOP, fh = Math.round(JAM_ZR / JAM_ZK);
+  c.fillStyle = '#d89850'; c.fillRect(0, fy, JAM_BGW, fh);
+  c.fillStyle = '#c48840'; for (j = fy + 2; j < fy + fh; j += 3) c.fillRect(0, j, JAM_BGW, 1);
+  c.fillStyle = '#b07830'; for (i = 0; i < 160; i++) c.fillRect(Math.floor(r() * JAM_BGW), fy + Math.floor(r() * fh), 2, 1);
+  // out of bounds is a darker stain
+  c.fillStyle = 'rgba(80,40,10,.35)'; c.fillRect(0, fy, ox + 10, fh); c.fillRect(ox + JAM_L - 10, fy, JAM_BGW - ox - JAM_L + 10, fh);
+  // the paint at each end, the lines and the arcs
+  var mid = fy + JAM_HZ / JAM_ZK, keyH = 18;
+  c.fillStyle = '#b83a28'; c.fillRect(ox + 10, Math.round(mid - keyH / 2), 66, keyH); c.fillRect(ox + JAM_L - 76, Math.round(mid - keyH / 2), 66, keyH);
+  c.fillStyle = '#2858f0'; c.beginPath(); c.ellipse(ox + JAM_L / 2, mid, 22, 5, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#fcfcfc';
+  c.fillRect(ox + 10, fy, JAM_L - 20, 1); c.fillRect(ox + 10, fy + fh - 1, JAM_L - 20, 1);
+  c.fillRect(ox + 10, fy, 1, fh); c.fillRect(ox + JAM_L - 11, fy, 1, fh); c.fillRect(ox + JAM_L / 2, fy, 1, fh);
+  c.fillRect(ox + 76, Math.round(mid - keyH / 2), 1, keyH); c.fillRect(ox + JAM_L - 77, Math.round(mid - keyH / 2), 1, keyH);
+  for (var k = 0; k < 2; k++){
+    var hx = ox + JAM_HX[k], dir = k ? -1 : 1;
+    for (var a = -Math.PI / 2; a <= Math.PI / 2; a += 0.01){
+      var px = hx + dir * Math.cos(a) * JAM_3PT, pz = mid + Math.sin(a) * JAM_3PT / JAM_ZK;
+      if (pz > fy && pz < fy + fh) c.fillRect(Math.round(px), Math.round(pz), 1, 1);
+    }
+  }
+  c.strokeStyle = '#fcfcfc'; c.lineWidth = 1; c.beginPath(); c.ellipse(ox + JAM_L / 2 + 0.5, mid, 22, 5, 0, 0, Math.PI * 2); c.stroke();
+  // the front: courtside seats and fans' heads
+  c.fillStyle = '#000'; c.fillRect(0, fy + fh, JAM_BGW, 1);
+  c.fillStyle = '#20264a'; c.fillRect(0, fy + fh + 1, JAM_BGW, JAM_BGH - fy - fh);
+  for (i = 0; i < JAM_BGW; i += 7 + Math.floor(r() * 4)){
+    c.fillStyle = '#000'; c.fillRect(i - 1, fy + fh + 10, 7, 30);
+    c.fillStyle = FANS[Math.floor(r() * FANS.length)]; c.fillRect(i, fy + fh + 17, 5, 30);
+    c.fillStyle = SKINS[Math.floor(r() * SKINS.length)]; c.fillRect(i, fy + fh + 11, 5, 6);
+    c.fillStyle = HAIRC[Math.floor(r() * 3)]; c.fillRect(i, fy + fh + 11, 5, 2);
+  }
+  JAM_BG = cv;
+  return cv;
+}
+/* a basket with its stanchion behind the baseline; k = 0 is the left hoop, 1 the right */
+function drawJamHoop(c, k, netT){
+  var hx = JAM_HX[k], s = k ? 1 : -1, ry = Math.round(JAM_TOP + JAM_HZ / JAM_ZK - JAM_RIM), fy = Math.round(JAM_TOP + JAM_HZ / JAM_ZK);
+  var bx = hx + s * 9, px = hx + s * 26;
+  c.fillStyle = '#000'; c.fillRect(px - 2, ry - 30, 5, fy - ry + 30); c.fillRect(Math.min(px, bx), ry - 30, Math.abs(px - bx) + 1, 4);
+  c.fillStyle = '#9aa0aa'; c.fillRect(px - 1, ry - 29, 3, fy - ry + 29); c.fillRect(Math.min(px, bx), ry - 29, Math.abs(px - bx), 2);
+  c.fillStyle = '#000'; c.fillRect(px - 6, fy - 10, 13, 12);
+  c.fillStyle = '#2040a8'; c.fillRect(px - 5, fy - 9, 11, 10);
+  // the backboard seen edge-on, with the rim sticking out toward the court
+  c.fillStyle = '#000'; c.fillRect(bx - 1, ry - 26, 4, 32);
+  c.fillStyle = '#e8f4ff'; c.fillRect(bx, ry - 25, 2, 30);
+  drawNet(c, hx - JAM_RR, hx + JAM_RR, ry, netT, 'rgba(252,252,252,.9)');
+  c.fillStyle = '#000'; c.fillRect(hx - JAM_RR - 1, ry - 2, JAM_RR * 2 + 3, 5);
+  c.fillStyle = '#f83800'; c.fillRect(hx - JAM_RR, ry - 1, JAM_RR * 2 + 1, 1); c.fillRect(hx - JAM_RR, ry + 1, JAM_RR * 2 + 1, 1);
+  c.fillStyle = '#f87800'; c.fillRect(hx - JAM_RR, ry, 1, 1); c.fillRect(hx + JAM_RR, ry, 1, 1);
+}
+
+function JamGame(){
+  var G = newWorld();
+  G.left = 0; G.phase = 'story'; G.pts = [0, 0]; G.clock = JAM_CLOCK; G.netT = 0; G.netK = 0; G.deadT = 0;
+  G.cam = { x: JAM_L / 2, y: 110, z: 0.6 };
+  G.queue = []; G.step = null; G.ui = null; G.uiRev = 0; G.inStep = false;
+  function mk(kind, team, x, z){
+    return { kind: kind, team: team, x: x, z: z, h: 0, vx: 0, vz: 0, vh: 0, face: team ? -1 : 1, anim: 0, dp: 0, meter: null, target: 0,
+      think: 0, tx: x, tz: z, wing: rand(70, 115), stealCD: 0, dunk: null, look: kind === 'me' ? LOOK : RIVAL_LOOK,
+      snow: { x: 0, vx: 0, face: -1, arms: 0, mood: '', moodT: 0, dp: 0, walk: 0, shiver: 0, hot: false, noBall: true } };
+  }
+  var me = mk('me', 0, 190, 130), dre = mk('dre', 0, -30, 70), bear = mk('bear', 1, 270, 90), snow = mk('snow', 1, 290, 170);
+  var P = [me, dre, bear, snow];
+  dre.man = bear; bear.man = dre; snow.man = me; me.man = snow;
+  var ball = { x: me.x, z: me.z, h: 10, vx: 0, vz: 0, vh: 0, holder: me, st: 'held', shooter: null, team: 0, three: false, age: 0, passTo: null, noPick: null, noPickT: 0, rim: false, tried: [] };
+  G.ball = ball; G.players = P;
+  function K(a){ return JAM_KIND[a.kind]; }
+  function dist(a, b){ return hyp(a.x - b.x, a.z - b.z); }
+  function attackHoop(team){ return team === 0 ? 1 : 0; }
+  function mate(a){ return a.team === 0 ? (a === me ? dre : me) : (a === bear ? snow : bear); }
+  function foes(a){ return a.team === 0 ? [bear, snow] : [me, dre]; }
+  function poss(){ return ball.holder ? ball.holder.team : (ball.st === 'pass' && ball.passTo ? ball.passTo.team : -1); }
+
+  /* ---------- the story: Frosty and the snowman want a rematch ---------- */
+  function say(name, text){ return { say: name, text: text }; }
+  function run(steps){ G.queue = steps.concat(G.queue); if (!G.step && !G.inStep) nextStep(); }
+  function nextStep(){
+    G.step = null; G.inStep = true;
+    while (G.queue.length && !G.step){
+      var s = G.queue.shift();
+      if (s.fn){ s.fn(); continue; }
+      G.step = s;
+      G.ui = s.say ? { name: s.say, text: s.text, shown: 0, col: TALK_COLS[s.say] } : null;
+      if (s.wait) s.t = s.wait;
+    }
+    if (!G.step) G.ui = null;
+    G.uiRev++; G.inStep = false;
+  }
+  G.choose = function(){};
+  run([{ wait: 0.8 },
+    say('FROSTY', 'HEY! YOU. WE WANT A REMATCH.'),
+    say('SNOWMAN', "THIS TIME IT'S 2 ON 2. FULL COURT."),
+    say('YOU', "BUT I DON'T HAVE A TEAMMATE..."),
+    { fn: function(){ dre.walkTo = 140; } }, { wait: 2.6 },
+    say('DRE', 'YOU DO NOW. I GOT YOU.'),
+    say('FROSTY', "FIRST TO 15. YOUR BALL. LET'S GO!"),
+    { fn: function(){ G.phase = 'play'; addCheer(G.pops, W / 2, 40, 'GAME ON!'); addPop(G.pops, W / 2, 56, 'FIRST TO 15', '#fcfcfc'); sfx.bonus(); } }]);
+
+  /* ---------- the ball ---------- */
+  function give(a){
+    if (ball.holder && ball.holder !== a) ball.holder.meter = null;
+    if (poss() !== a.team) G.clock = JAM_CLOCK;
+    ball.holder = a; ball.st = 'held'; ball.team = a.team; ball.passTo = null; a.think = rand(0.3, 0.8); a.tx = null;
+    if (a === me) G.meter = null;
+  }
+  function shoot(a, pw){
+    var hk = attackHoop(a.team), dx = JAM_HX[hk] - a.x, dz = JAM_HZ - a.z, d = hyp(dx, dz) || 1, v = 165 + pw * 105, hv = v * Math.cos(ANG);
+    ball.holder = null; ball.st = 'shot'; ball.shooter = a; ball.team = a.team; ball.three = d > JAM_3PT; ball.age = 0; ball.rim = false;
+    ball.x = a.x + dx / d * 3; ball.z = a.z + dz / d * 3; ball.h = a.h + K(a).rel;
+    ball.vx = dx / d * hv; ball.vz = dz / d * hv; ball.vh = v * Math.sin(ANG);
+    ball.noPick = a; ball.noPickT = 0.4;
+    a.meter = null; if (a === me) G.meter = null;
+    a.face = dx > 0 ? 1 : -1;
+    sfx.dribble();
+  }
+  function pass(a, to){
+    var lead = 0.25, tx = to.x + to.vx * lead, tz = to.z + to.vz * lead, d = hyp(tx - a.x, tz - a.z), T = clamp(d / 260, 0.2, 0.8);
+    ball.holder = null; ball.st = 'pass'; ball.passTo = to; ball.team = a.team; ball.tried = [];
+    ball.x = a.x; ball.z = a.z; ball.h = 14; ball.vx = (tx - a.x) / T; ball.vz = (tz - a.z) / T; ball.vh = 0.5 * BALL_G * T;
+    ball.noPick = a; ball.noPickT = 0.25;
+    a.meter = null; if (a === me) G.meter = null;
+    tone(500, 0.06, 'square', 0.03, 200);
+  }
+  function layup(a){
+    var hk = attackHoop(a.team);
+    a.dunk = { t: 0, x0: a.x, z0: a.z, hk: hk, done: false, dunk: a.kind === 'bear', make: a.kind === 'bear' || Math.random() < (K(a).layup || 0.85) };
+    a.meter = null; if (a === me) G.meter = null;
+  }
+  function stepDunk(a, dt){
+    var D = a.dunk, hx = JAM_HX[D.hk], k;
+    D.t += dt; k = Math.min(1, D.t / 0.6);
+    var ex = hx - (D.hk ? 1 : -1) * (D.dunk ? 3 : 9);
+    a.x = D.x0 + (ex - D.x0) * Math.min(1, k * 1.6); a.z = D.z0 + (JAM_HZ - D.z0) * Math.min(1, k * 1.6);
+    a.h = Math.sin(Math.PI * k) * (D.dunk ? JAM_RIM - 20 : 26); a.vx = a.vz = 0; a.face = hx > a.x ? 1 : -1;
+    if (!D.done && k >= 0.5){
+      D.done = true;
+      ball.holder = null; ball.shooter = a; ball.team = a.team; ball.three = false; ball.age = 0; ball.noPick = a; ball.noPickT = 0.3;
+      if (D.make){
+        // straight down through the rim
+        ball.st = 'shot'; ball.x = hx; ball.z = JAM_HZ; ball.h = JAM_RIM + 3; ball.vx = 0; ball.vz = 0; ball.vh = -40;
+        if (D.dunk){ addCheer(G.pops, W / 2, 34, 'FROSTY SLAM!!'); G.shake = 0.5; tone(80, 0.3, 'sawtooth', 0.06, -30); }
+      } else {
+        // off the rim
+        ball.st = 'shot'; ball.x = hx + (D.hk ? -1 : 1) * 10; ball.z = JAM_HZ + rand(-20, 20); ball.h = JAM_RIM + 4; ball.vx = (D.hk ? -1 : 1) * 30; ball.vz = rand(-30, 30); ball.vh = 60; ball.rim = true;
+        sfx.rim();
+      }
+    }
+    if (k >= 1){ a.h = 0; a.dunk = null; }
+  }
+  function scored(k){
+    var team = ball.team, pts = ball.three ? 3 : 2;
+    G.pts[team] += pts; ball.st = 'dead'; G.deadT = 1.2; G.netT = 0.5; G.netK = k;
+    if (team === 0) G.score += pts;
+    var who = ball.shooter, nm = who === me ? 'YOU' : (who === dre ? 'DRE' : (who === bear ? 'FROSTY' : 'SNOWMAN'));
+    addCheer(G.pops, W / 2, 30, team === 0 ? undefined : (who === bear ? 'FROSTY SCORES!' : 'SNOWMAN SCORES!'));
+    addPop(G.pops, W / 2, 46, nm + ' +' + pts + (ball.three ? '  THREE!' : ''), JAM_TEAM_COL[team], true);
+    sfx.swish();
+    if (G.pts[team] >= JAM_WIN) endGame(team === 0);
+  }
+  function turnover(text){
+    addPop(G.pops, W / 2, 40, text, '#f86060', true);
+    tone(220, 0.25, 'square', 0.05, -100);
+    inbound(1 - poss());
+  }
+  // the other team takes it out under the hoop they defend
+  function inbound(team){
+    var a = team === 0 ? me : snow, k = team === 0 ? 0 : 1, dir = k ? -1 : 1;
+    if (team === 0 && dre.x > -10 && dist(dre, { x: JAM_HX[0], z: JAM_HZ }) < dist(me, { x: JAM_HX[0], z: JAM_HZ })) a = dre;
+    if (team === 1 && dist(bear, { x: JAM_HX[1], z: JAM_HZ }) < dist(snow, { x: JAM_HX[1], z: JAM_HZ })) a = bear;
+    a.x = JAM_HX[k] + dir * 22; a.z = JAM_HZ + rand(-40, 40); a.h = 0; a.dunk = null;
+    give(a);
+    G.clock = JAM_CLOCK;
+  }
+  function stepBall(dt){
+    var b = ball, i, k;
+    b.noPickT -= dt;
+    if (b.holder){
+      var a = b.holder, f = a.face;
+      if (a.meter || a.dunk){ b.x = a.x + f * 2; b.z = a.z; b.h = a.h + K(a).rel + 4; }
+      else {
+        a.dp += dt * (Math.abs(a.vx) + Math.abs(a.vz) > 5 ? 9 : 6);
+        b.x = a.x + f * (a.kind === 'bear' ? 10 : (a.kind === 'snow' ? 11 : 6)); b.z = a.z + 2; b.h = BR + Math.abs(Math.sin(a.dp)) * (a.kind === 'snow' ? 9 : 8);
+      }
+      return;
+    }
+    b.age += dt;
+    for (var s = 0; s < 3; s++){
+      var h = dt / 3, ph = b.h;
+      b.vh -= BALL_G * h; b.x += b.vx * h; b.z += b.vz * h; b.h += b.vh * h;
+      for (k = 0; k < 2; k++){
+        var hx = JAM_HX[k], bx = hx + (k ? 9 : -9);
+        if (b.vh < 0 && ph >= JAM_RIM && b.h < JAM_RIM){
+          var dd = hyp(b.x - hx, b.z - JAM_HZ);
+          if (dd < JAM_RR - 2 && b.st !== 'dead'){ scored(k); b.vx *= 0.2; b.vz *= 0.2; }
+          else if (dd < JAM_RR + BR + 1 && b.st !== 'dead'){
+            var nx = (b.x - hx) / (dd || 1), nz = (b.z - JAM_HZ) / (dd || 1), vn = b.vx * nx + b.vz * nz;
+            b.vx -= 1.6 * vn * nx; b.vz -= 1.6 * vn * nz; b.vh = Math.abs(b.vh) * 0.35 + 10; b.h = JAM_RIM + 0.1;
+            b.vx += nx * 25; b.vz += nz * 25;
+            if (!b.rim){ b.rim = true; G.clock = JAM_CLOCK; }
+            if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; }
+          }
+        }
+        // the backboard
+        if (Math.abs(b.z - JAM_HZ) < 26 && b.h > JAM_RIM - 2 && b.h < JAM_RIM + 28 && ((k === 0 && b.x < bx + BR && b.vx < 0 && b.x > bx - 6) || (k === 1 && b.x > bx - BR && b.vx > 0 && b.x < bx + 6))){
+          b.x = bx + (k ? -BR : BR); b.vx = -b.vx * 0.55; sfx.board();
+        }
+      }
+      if (b.h < BR){
+        b.h = BR;
+        if (b.st === 'shot' || b.st === 'pass') b.st = 'loose';
+        if (b.vh < -30){ b.vh = -b.vh * 0.55; if (b.st !== 'dead') sfx.bounce(0.03); } else b.vh = 0;
+        b.vx *= Math.pow(0.4, h); b.vz *= Math.pow(0.4, h);
+      }
+      // the walls and the crowd send it back onto the court
+      if (b.x < 6 || b.x > JAM_L - 6){ b.x = clamp(b.x, 6, JAM_L - 6); b.vx = -b.vx * 0.4; }
+      if (b.z < 8 || b.z > JAM_ZR - 8){ b.z = clamp(b.z, 8, JAM_ZR - 8); b.vz = -b.vz * 0.4; }
+    }
+    if (b.st === 'dead') return;
+    // blocks: a defender in the air right next to a shot that's still rising
+    if (b.st === 'shot' && b.age < 0.5){
+      for (i = 0; i < P.length; i++){
+        var d0 = P[i];
+        if (d0.team === b.team || d0.h < 6 || d0.dunk) continue;
+        if (hyp(b.x - d0.x, b.z - d0.z) < 11 && b.h < d0.h + K(d0).rel + 18 && b.h > d0.h + 6){
+          b.st = 'loose'; b.vx *= -0.4; b.vz = rand(-60, 60); b.vh = 50; b.team = d0.team;
+          addCheer(G.pops, W / 2, 34, pick(['BLOCKED!', 'REJECTED!', 'NOT IN HERE!']));
+          tone(140, 0.15, 'square', 0.05, -60); G.shake = 0.3;
+          break;
+        }
+      }
+    }
+    // passes: the receiver catches it, or a defender in the lane might pick it off
+    if (b.st === 'pass'){
+      var r = b.passTo;
+      if (dist(b, r) < 10 && b.h < 30){ give(r); return; }
+      var fs = foes(r);
+      for (i = 0; i < fs.length; i++){
+        var o = fs[i];
+        if (b.tried.indexOf(o) < 0 && dist(b, o) < 8 && b.h < 26){
+          b.tried.push(o);
+          if (Math.random() < 0.3){ give(o); addCheer(G.pops, W / 2, 34, 'PICKED OFF!'); return; }
+        }
+      }
+    }
+    // a loose ball goes to whoever gets to it first
+    if (b.st === 'loose' && b.h < 18){
+      for (i = 0; i < P.length; i++){
+        var q = P[i];
+        if (q.dunk || (b.noPick === q && b.noPickT > 0)) continue;
+        if (dist(b, q) < 11){ if (poss() !== q.team && q.team !== b.team) addPop(G.pops, W / 2, 40, 'REBOUND!', JAM_TEAM_COL[q.team]); give(q); return; }
+      }
+    }
+  }
+  function trySteal(a){
+    var hd = ball.holder;
+    if (!hd || hd.team === a.team || a.stealCD > 0 || dist(a, hd) > 14 || hd.dunk) return false;
+    a.stealCD = 0.7;
+    var ch = K(a).steal * (hd.meter ? 0.5 : 1);
+    if (Math.random() < ch){ give(a); addCheer(G.pops, W / 2, 34, a.team === 0 ? 'STEAL!' : 'STOLEN!'); tone(900, 0.1, 'square', 0.04, 600); return true; }
+    tone(300, 0.06, 'square', 0.03); return false;
+  }
+
+  /* ---------- the players that run themselves ---------- */
+  function moveTo(a, tx, tz, sp){
+    var dx = tx - a.x, dz = tz - a.z, d = hyp(dx, dz);
+    if (d < 3){ a.vx = 0; a.vz = 0; return; }
+    a.vx = dx / d * sp; a.vz = dz / d * sp;
+  }
+  function brain(a, dt){
+    var k = K(a), sp = k.speed, hk = attackHoop(a.team), hx = JAM_HX[hk], dir = hk ? 1 : -1, b = ball, i;
+    var dh = hyp(hx - a.x, JAM_HZ - a.z), pt = poss();
+    if (b.holder === a){
+      if (a.meter){ a.vx = a.vz = 0; a.meter.p += dt / 0.9; if (a.meter.p >= a.target) shoot(a, a.meter.p); return; }
+      var nd = 1e9; foes(a).forEach(function(o){ nd = Math.min(nd, dist(a, o)); });
+      var m = mate(a);
+      if (dh < (a.kind === 'bear' ? 40 : 28)){ layup(a); return; }
+      a.think -= dt;
+      if (a.think <= 0 && dh > 34 && dh < 150 && (nd > 16 || G.clock < 4) && (a.kind !== 'bear' || G.clock < 5 || dh < 80)){
+        var pw = jamPower(dh, a.h + k.rel);
+        if (pw >= 0){ a.target = clamp(pw + gauss() * k.err, 0.02, 1); a.meter = { p: 0, dir: 1 }; a.face = dir; a.vx = a.vz = 0; return; }
+      }
+      // pass when crowded, or when the teammate calls for it
+      if (m.x > -10 && ((nd < 10 && Math.random() < dt * 0.6) || (a === dre && G.callT > 0)) && G.clock > 1){ G.callT = 0; pass(a, m); return; }
+      if (a.tx == null) a.tx = hx - dir * (a.kind === 'bear' ? 10 : rand(60, 115));
+      a.tz = a.tz == null ? a.z : a.tz;
+      if (Math.random() < dt * 0.5) a.tz = clamp(JAM_HZ + rand(-80, 80), 20, JAM_ZR - 20);
+      moveTo(a, a.tx, a.tz, sp * 0.95);
+      a.face = a.vx ? sgn(a.vx) : dir;
+    } else if (pt === a.team || (b.st === 'shot' && b.team === a.team && b.age < 0.3)){
+      // get open on the wing, away from the ball
+      var hold = b.holder || b.passTo || me;
+      moveTo(a, hx - dir * a.wing, hold.z > JAM_HZ ? 50 : JAM_ZR - 50, sp * 0.85);
+      if (Math.random() < dt * 0.2) a.wing = rand(60, 120);
+      a.face = a.vx ? sgn(a.vx) : dir;
+    } else if (b.st === 'loose' || b.st === 'shot'){
+      // chase the rebound if I'm the closest on my team, otherwise get back
+      var m2 = mate(a);
+      if (b.st === 'loose' || b.age > 0.6){
+        if (dist(a, b) <= dist(m2, b) || m2 === me) moveTo(a, b.x, b.z, sp);
+        else moveTo(a, (JAM_HX[1 - hk] + JAM_L / 2) / 2, JAM_HZ, sp * 0.8);
+      } else moveTo(a, JAM_HX[1 - hk] - (hk ? 1 : -1) * -40 + 0, JAM_HZ + (a.kind === 'snow' ? 40 : -40), sp * 0.8);
+      a.face = a.vx ? sgn(a.vx) : a.face;
+    } else if (b.st === 'dead'){
+      a.vx = a.vz = 0;
+    } else {
+      // defense: stay between my man and the hoop we're protecting
+      var man = a.man, dk = 1 - hk, gx = JAM_HX[dk], ux = gx - man.x, uz = JAM_HZ - man.z, ud = hyp(ux, uz) || 1;
+      moveTo(a, man.x + ux / ud * 12, man.z + uz / ud * 12, sp);
+      a.face = man.x > a.x ? 1 : -1;
+      if (b.holder === man && dist(a, man) < 14 && Math.random() < dt * 0.8) trySteal(a);
+      if (b.holder === man && (man.meter || (man === me && G.meter)) && dist(a, man) < 18 && a.h === 0 && Math.random() < dt * 4) a.vh = 210;
+    }
+  }
+
+  function endGame(win){
+    G.phase = 'story'; G.meter = null;
+    P.forEach(function(a){ a.meter = null; a.vx = a.vz = 0; });
+    if (win) G.score += 10;
+    run([{ wait: 1.5 }].concat(win ? [
+      say('FROSTY', 'NOOO! FINE... YOU TWO ARE GOOD.'),
+      say('SNOWMAN', "I'M MELTING... FROM EMBARRASSMENT."),
+      say('DRE', "THAT'S MY TEAMMATE!")] : [
+      say('FROSTY', 'TOLD YOU. BEAR BALL!'),
+      say('DRE', "WE'LL GET 'EM NEXT TIME.")]).concat([
+      { fn: function(){ G.clearText = win ? 'YOU WIN THE REMATCH!' : 'FROSTY & SNOWMAN WIN!'; G.done = true; } }]));
+  }
+
+  G.key = function(k){
+    var s = G.step;
+    if (s){
+      if (s.say && (k === 'a' || k === 'b' || k === 'start')){ if (G.ui.shown < s.text.length) G.ui.shown = s.text.length; else { sfx.tick(); nextStep(); } }
+      return true;
+    }
+    if (G.phase !== 'play') return true;
+    if (me.dunk) return true;
+    var hk = attackHoop(0);
+    if (k === 'a'){
+      if (ball.holder === me){ if (dre.x > -10) pass(me, dre); }
+      else if (ball.holder === dre){ G.callT = 0.6; addPop(G.pops, W / 2, 40, 'DRE!', '#f8a040'); }
+      else if (me.h === 0) me.vh = 210;
+      return true;
+    }
+    if (k === 'b'){
+      if (ball.holder === me){
+        if (hyp(JAM_HX[hk] - me.x, JAM_HZ - me.z) < 30) layup(me);
+        else { G.meter = { p: 0, dir: 1 }; me.face = JAM_HX[hk] > me.x ? 1 : -1; }
+      } else if (!trySteal(me) && ball.holder && ball.holder.team === 1 && dist(me, ball.holder) > 14) addPop(G.pops, W / 2, 40, 'GET CLOSER TO STEAL', '#fcfcfc');
+      return true;
+    }
+    return k === 'u' || k === 'd';
+  };
+  G.release = function(k){ if (k === 'shoot' && G.meter && ball.holder === me) shoot(me, G.meter.p); };
+  G.press = function(){};
+
+  G.update = function(dt){
+    var i, a;
+    G.t += dt; G.netT = Math.max(0, G.netT - dt); G.rimSnd -= dt; G.shake = Math.max(0, G.shake - dt); G.callT = Math.max(0, (G.callT || 0) - dt);
+    var s = G.step;
+    if (s){
+      if (s.say && G.ui) G.ui.shown += dt * 45;
+      else if (s.wait){ s.t -= dt; if (s.t <= 0) nextStep(); }
+    }
+    if (dre.walkTo != null){ dre.vx = dre.x < dre.walkTo - 2 ? 70 : 0; if (!dre.vx) dre.walkTo = null; }
+    if (G.phase === 'play'){
+      // you
+      if (!me.dunk && !G.autoMe){
+        if (G.meter && ball.holder === me){
+          me.vx = me.vz = 0;
+          G.meter.p += G.meter.dir * dt / 1.2;
+          if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
+        } else {
+          var mx = (inp.r ? 1 : 0) - (inp.l ? 1 : 0), mz = (inp.d ? 1 : 0) - (inp.u ? 1 : 0), ml = hyp(mx, mz) || 1;
+          me.vx = mx / ml * K(me).speed; me.vz = mz / ml * K(me).speed;
+          if (mx) me.face = mx;
+        }
+      }
+      for (i = G.autoMe ? 0 : 1; i < P.length; i++) if (!P[i].dunk) brain(P[i], dt);
+      if (G.deadT > 0){ G.deadT -= dt; if (G.deadT <= 0 && G.phase === 'play') inbound(1 - ball.team); }
+      // the shot clock
+      if (poss() >= 0 && ball.st !== 'dead'){
+        G.clock -= dt;
+        if (G.clock <= 0){ G.clock = JAM_CLOCK; turnover('SHOT CLOCK!'); }
+      }
+    }
+    for (i = 0; i < P.length; i++){
+      a = P[i];
+      a.stealCD -= dt;
+      if (a.dunk){ stepDunk(a, dt); continue; }
+      a.x = clamp(a.x + a.vx * dt, a === dre && dre.walkTo != null ? -40 : 4, JAM_L - 4);
+      a.z = clamp(a.z + a.vz * dt, 6, JAM_ZR - 6);
+      if (a.h > 0 || a.vh > 0){ a.vh -= 520 * dt; a.h += a.vh * dt; if (a.h <= 0){ a.h = 0; a.vh = 0; } }
+      if (Math.abs(a.vx) + Math.abs(a.vz) > 5) a.anim += dt * 10;
+      a.snow.vx = a.vx; a.snow.face = a.face; a.snow.dp += dt * 6; a.snow.walk += dt * hyp(a.vx, a.vz) * 0.5;
+      a.snow.arms += ((a.meter || a.h > 0 ? 1 : 0.2) - a.snow.arms) * Math.min(1, dt * 8);
+    }
+    if (G.phase === 'play' || ball.st !== 'held') stepBall(dt);
+    stepFx(G.parts, G.pops, dt);
+    // the camera keeps everyone in the shot, zooming out as they spread across the court
+    var x0 = ball.x, x1 = ball.x;
+    P.forEach(function(q){ if (q.x > -20){ x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); } });
+    var zt = clamp(W / (x1 - x0 + 90), W / (JAM_L + 70), 1.25), ht = W / zt / 2, vt = H / zt / 2;
+    var cxT = clamp((x0 + x1) / 2, JAM_BGX + ht, JAM_BGX + JAM_BGW - ht);
+    if (ht * 2 >= JAM_BGW) cxT = JAM_BGX + JAM_BGW / 2;
+    var top = Math.min(JAM_TOP + JAM_HZ / JAM_ZK - JAM_RIM - 30, JAM_TOP + ball.z / JAM_ZK - ball.h - 16), bot = JAM_TOP + JAM_ZR / JAM_ZK + 14;
+    var cyT = clamp((top + bot) / 2, vt, JAM_BGH - vt);
+    var cam = G.cam, kk = Math.min(1, dt * 2.5);
+    cam.z += (zt - cam.z) * kk; cam.x += (cxT - cam.x) * kk; cam.y += (cyT - cam.y) * kk;
+  };
+
+  function camXf(v){
+    var cam = G.cam, k = v.S * v.dpr;
+    v.c.setTransform(k * cam.z, 0, 0, k * cam.z, (W / 2 - cam.x * cam.z) * k, (H / 2 - cam.y * cam.z) * k);
+    v.c.imageSmoothingEnabled = false;
+  }
+  function scr(x, y){ return { x: (x - G.cam.x) * G.cam.z + W / 2, y: (y - G.cam.y) * G.cam.z + H / 2 }; }
+  G.draw = function(v){
+    var c = v.c, t = G.t, i, cam = G.cam;
+    gameXf(v); c.fillStyle = '#10142a'; c.fillRect(0, 0, W, H);
+    camXf(v);
+    c.drawImage(jamBg(), JAM_BGX, 0);
+    drawJamHoop(c, 0, G.netK === 0 ? G.netT : 0);
+    drawJamHoop(c, 1, G.netK === 1 ? G.netT : 0);
+    // shadows on the floor
+    c.fillStyle = 'rgba(0,0,0,.3)';
+    P.forEach(function(a){ c.beginPath(); c.ellipse(Math.round(a.x), Math.round(JAM_TOP + a.z / JAM_ZK), a.kind === 'bear' || a.kind === 'snow' ? 8 : 5, 2, 0, 0, Math.PI * 2); c.fill(); });
+    c.beginPath(); c.ellipse(Math.round(ball.x), Math.round(JAM_TOP + ball.z / JAM_ZK), 3, 1, 0, 0, Math.PI * 2); c.fill();
+    // everyone, back to front
+    var order = P.slice().sort(function(a, b){ return a.z - b.z; });
+    var ballDrawn = false, ballY = JAM_TOP + ball.z / JAM_ZK;
+    order.forEach(function(a){
+      if (!ballDrawn && ball.holder == null && ballY < JAM_TOP + a.z / JAM_ZK){ drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, t * 8, 0); ballDrawn = true; }
+      var x = Math.round(a.x), y = Math.round(JAM_TOP + a.z / JAM_ZK - a.h), moving = Math.abs(a.vx) + Math.abs(a.vz) > 5;
+      var up = !!a.meter || (a === me && !!G.meter) || a.h > 0;
+      if (a.kind === 'bear') drawBearAt(c, x, y, a.face, a.h > 0 ? 2 : (moving && Math.floor(a.anim * 0.7) % 2 ? 1 : 0), up, ball.holder === a);
+      else if (a.kind === 'snow'){ c.save(); c.translate(x, y); c.scale(0.7, 0.7); c.translate(0, -FLOOR); drawSnowman(c, a.snow, t); c.restore(); }
+      else drawAvatar(c, a.look, x, y, a.face, legFrame(a.h > 0, moving ? 1 : 0, a.anim), up, 0);
+      if (ball.holder === a) drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, a.dp * a.face, 0);
+      var mt = a === me ? G.meter : a.meter;
+      if (mt) drawMeter(c, x - a.face * (a.kind === 'bear' ? 6 : 0), y + (a.kind === 'bear' ? 4 : (a.kind === 'snow' ? -2 : 0)), mt.p);
+    });
+    if (!ballDrawn && ball.holder == null) drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, t * 8, 0);
+    drawParts(c, G.parts);
+    // name tags and the "you" arrow
+    order.forEach(function(a){
+      if (a.x < -20) return;
+      var top = JAM_TOP + a.z / JAM_ZK - a.h - (a.kind === 'bear' ? 30 : (a.kind === 'snow' ? 33 : 18)), p0 = scr(a.x, top);
+      if (a === me){ c.fillStyle = '#f8d800'; var ax = Math.round(a.x), ay = Math.round(top - 2); c.fillRect(ax - 2, ay - 3, 5, 1); c.fillRect(ax - 1, ay - 2, 3, 1); c.fillRect(ax, ay - 1, 1, 1); }
+      vText(v, a === me ? 'YOU' : a.kind === 'dre' ? 'DRE' : a.kind === 'bear' ? 'FROSTY' : 'SNOWMAN', p0.x, p0.y - 3, JAM_TEAM_COL[a.team], Math.max(7, Math.round(nameSize(v) * 0.7 * Math.min(1, cam.z + 0.2))));
+      camXf(v);
+    });
+    gameXf(v);
+    // the scoreboard
+    c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(W / 2 - 62, 2, 124, 13);
+    vText(v, 'YOU+DRE ' + G.pts[0] + '   ' + G.pts[1] + ' FROSTY+SNOW', W / 2, 9, '#fcfcfc', nameSize(v));
+    drawPops(v, G.pops);
+  };
+  G.hud = function(){
+    return { balls: -1, info: G.phase === 'play' ? 'FIRST TO 15' : '', time: G.phase === 'play' ? 'SHOT :' + Math.max(0, Math.ceil(G.clock)) : '' };
+  };
+  G.resultHtml = function(){ return '<p>YOU+DRE ' + G.pts[0] + ' - ' + G.pts[1] + ' FROSTY+SNOW</p>'; };
+  G.skipIntro = function(){ G.queue = []; G.step = null; G.ui = null; G.uiRev++; dre.x = 140; dre.walkTo = null; G.phase = 'play'; };   // handy for testing
+  return G;
+}
+
+/* ============================================================
    THE BOARDS
 ============================================================ */
 var BOARDS = [
@@ -3276,7 +3817,9 @@ var BOARDS = [
   { id: 'sky', name: 'IN THE CLOUDS', sub: "AIR JORDANN'S ON: TRIPLE JUMP, SKY HOOP, RAIN CLOUDS", make: function(){ return CourtGame(true); },
     how: "YOU'RE WEARING THE AIR JORDANN'S: JUMP HIGHER, AND JUMP 3 TIMES<br>SPRINGY CLOUDS &nbsp; LIT HOOPS 2, 3, 5, THEN MAGIC<br>THE GOLDEN SKY HOOP IS WORTH 7 ANY TIME<br>DON'T HIT A RAIN CLOUD: LIGHTNING TAKES HALF YOUR POINTS! &nbsp; 2 MINUTES" },
   { id: 'ice', name: 'FROZEN HOOPS', sub: 'SLIPPERY ICE, A POLAR BEAR, A SNOWMAN ON DEFENSE, AND PENGUINS', make: IceGame,
-    how: 'WALL HOOPS 2 AND 3 PTS, AND THE 5 HANGS FROM THE ICICLES &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. A BALL THAT GOES IN CAN BONK A PENGUIN: +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' }
+    how: 'WALL HOOPS 2 AND 3 PTS, AND THE 5 HANGS FROM THE ICICLES &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. A BALL THAT GOES IN CAN BONK A PENGUIN: +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' },
+  { id: 'jam', name: 'THE REMATCH', sub: '2 ON 2, FULL COURT: YOU AND DRE VS FROSTY AND THE SNOWMAN', make: JamGame,
+    how: 'FIRST TO 15. 2S AND 3S. 10 SECOND SHOT CLOCK.<br>&#9664; &#9654; &#9650; &#9660; RUN THE WHOLE COURT &nbsp; WITH THE BALL: HOLD SPACE TO SHOOT (CLOSE = LAYUP), Z TO PASS<br>WITHOUT IT: Z CALLS FOR THE BALL FROM DRE, OR JUMPS TO BLOCK ON DEFENSE &nbsp; SPACE STEALS' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
@@ -3423,7 +3966,7 @@ function keyDown(k){
 function keyUp(k){ if (mode === 'play' && k === 'b') game.release('shoot'); }
 
 /* ---------- keyboard ---------- */
-var KEYMAP = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd', ' ': 'b', a: 'l', d: 'r', w: 'u', s: 'd', A: 'l', D: 'r', W: 'u', S: 'd' };
+var KEYMAP = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd', ' ': 'b', a: 'l', d: 'r', w: 'u', s: 'd', A: 'l', D: 'r', W: 'u', S: 'd', z: 'a', Z: 'a', x: 'b', X: 'b' };
 document.addEventListener('keydown', function(e){
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P'){ e.preventDefault(); if (!e.repeat) keyDown('back'); return; }
