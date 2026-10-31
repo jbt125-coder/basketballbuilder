@@ -5312,6 +5312,7 @@ function drawEqPlat(c, q, t, lit, next, order){
 function EquusGame(){
   var G = newWorld(), p = newHero(40);
   G.hero = p; G.look = LOOK; G.left = 0; G.phase = 'story'; G.lettersMe = 0; G.lettersHim = 0;
+  G.magic = { left: 0 };                                                   // unlimited jumps on Planet Equus, to keep up with Neighthan
   G.turn = 'none'; G.setter = 'alien'; G.req = null; G.idx = 0; G.rec = []; G.turnT = 0; G.shot = null; G.lit = []; G.round = 0; G.waitT = 0;
   G.queue = []; G.step = null; G.ui = null; G.uiRev = 0; G.inStep = false;
   var plats = EQ_PLATS.map(function(d){ return { n: d.n, id: 'eq' + d.n, x1: d.x1, x2: d.x2, y: d.base, d: d, stand: 0, shake: 0, gone: false, back: 0, vy: 0, fade: 1 }; });
@@ -5363,7 +5364,7 @@ function EquusGame(){
     if (G.setter === 'alien'){
       G.turn = 'alienSet';
       addPop(G.pops, W / 2, 30, "NEIGHTHAN'S SHOT: WATCH!", '#58f8b8', true);
-      perform(makeRoute(), Math.random() < 0.85);
+      perform(makeRoute(), Math.random() < 0.68);
     } else {
       G.turn = 'set'; G.turnT = EQ_SET_SECS;
       addPop(G.pops, W / 2, 30, 'YOUR SHOT: SET ONE FOR HIM!', '#fcfc78', true);
@@ -5422,7 +5423,7 @@ function EquusGame(){
   function startAlienCopy(){
     G.turn = 'alienCopy'; G.lit = [];
     var hard = G.req.steps.length;
-    perform({ steps: G.req.steps, hoop: G.req.hoop }, Math.random() < clamp(0.85 - hard * 0.13, 0.35, 0.85));
+    perform({ steps: G.req.steps, hoop: G.req.hoop }, Math.random() < clamp(0.72 - hard * 0.14, 0.25, 0.72));
   }
 
   /* ---------- Neighthan hops his route and shoots ---------- */
@@ -5737,7 +5738,7 @@ var BOARDS = [
   { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
     how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' },
   { id: 'equus', name: 'PLANET EQUUS', sub: 'A GAME OF HUMAN AGAINST NEIGHTHAN THE HORSE ALIEN', make: EquusGame,
-    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>PLATFORMS DROP IF YOU STAND ON THEM TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.' }
+    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>UNLIMITED JUMPS HERE. PLATFORMS DROP IF YOU STAND TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
