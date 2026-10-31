@@ -161,6 +161,7 @@ body.touch:not(.land) #pad { flex: 1; }
    Board 6: the rematch (2 on 2 full court with a zooming camera)
    Board 7: cyber court (BOLT the robot, drone birds, holo-hoops, overclock)
    Board 8: volcano beach (Kai and Lei, seals, nene, surfers, and the volcano)
+   Board 9: planet equus (a game of HUMAN against Neighthan the horse alien)
 ============================================================ */
 
 /* ============================================================
@@ -5208,6 +5209,510 @@ function AlohaGame(){
 }
 
 /* ============================================================
+   BOARD 9: PLANET EQUUS — a game of HUMAN against Neighthan, a horse alien. He hops a route across
+   bobbing, crumbling platforms and horse flies and shoots; you copy it. Then you set one for him.
+   Your misses spell H-U-M-A-N, his spell H-O-R-S-E. First to spell their whole word loses.
+============================================================ */
+var EQ_WORD_ME = 'HUMAN', EQ_WORD_HIM = 'HORSE', EQ_COPY_SECS = 25, EQ_SET_SECS = 20, EQ_STAND = 1.6;
+var EQ_HOOPS = [
+  { i: 0, side: -1, bx: 10, y: 84, name: 'LEFT HOOP' },
+  { i: 1, side: 1, bx: 244, y: 66, name: 'RIGHT HOOP' }
+];
+EQ_HOOPS.forEach(function(g){ g.rl = g.side > 0 ? g.bx - 1 - RIM_W : g.bx + 4; g.rr = g.rl + RIM_W; g.cx = g.rl + RIM_W / 2; });
+// the four numbered platforms: where they float, how far they bob, and how fast
+var EQ_PLATS = [
+  { n: 1, x1: 42, x2: 70, base: 102, amp: 9, sp: 1.1, ph: 0 },
+  { n: 2, x1: 86, x2: 114, base: 78, amp: 12, sp: 0.8, ph: 1.7 },
+  { n: 3, x1: 138, x2: 166, base: 96, amp: 10, sp: 1.3, ph: 3.1 },
+  { n: 4, x1: 182, x2: 210, base: 62, amp: 9, sp: 0.9, ph: 4.4 }
+];
+TALK_COLS.NEIGHTHAN = '#58f8b8';
+/* Neighthan: a tall green horse alien with a glowing mane, antennae, and a purple space jersey */
+var NEIGH_SPR = (function(){
+  var pal = { g: '#58c878', G: '#3a9858', m: '#58f8f8', o: '#f8f858', a: '#a0a0b8', e: '#000000', n: '#205030', J: '#8030d0', s: '#f8d800', S: '#5020a0', k: '#3a2a20', w: '#fcfcfc' };
+  var TOP = [
+    '.....o....o.....', '.....a....a.....', '......a..a......', '......gg.gg.....', '.....mggggg.....', '....mmggggggg...', '....mmgggwegggg.',
+    '....mmgggggggggn', '....mmgggggggGG.', '....mmggggGGG...', '.....mggg.......', '.....mggg.......', '...JJJJJJJJ.....', '...JJJJsJJJ.....',
+    '...JJJsssJJ.....', '...JJJJsJJJ.....', '...JJJJJJJJ.....', '...SSSSSSSS.....', '...SSSS.SSS.....'];
+  var LEGS = [['...ggg..ggg.....', '...ggg..ggg.....', '...ggg..ggg.....', '..kkkk.kkkk.....'],
+              ['..ggg....ggg....', '.ggg......ggg...', '.ggg......ggg...', 'kkkk......kkkk..'],
+              ['....gggggg......', '....gggggg......', '....kkkkkk......', '................']];
+  return LEGS.map(function(l){ var a = outlined(makeSpriteP(TOP.concat(l), pal)); return { r: a, l: flipC(a) }; });
+})();
+/* horse flies: big, striped, green-eyed, with buzzing wings */
+var HFLY_SPR = (function(){
+  var pal = { b: '#3a3a3a', y: '#c8a838', e: '#38d848', E: '#18a028', w: 'rgba(220,240,255,.8)', k: '#101010' };
+  var A = ['...ww..ww...', '..wwww.wwww.', '...ww..ww...', '.ybybybyeeE.', 'ybybybybeeEk', '.ybybybyeeE.', '..k.k.k.....'];
+  var B = ['............', '............', '..wwwwwwww..', '.ybybybyeeE.', 'ybybybybeeEk', '.ybybybyeeE.', '..k.k.k.....'];
+  return [A, B].map(function(rows){ var a = outlined(makeSpriteP(rows, pal)); return { r: a, l: flipC(a) }; });
+})();
+var EQ_BG = null;
+function equusBg(){
+  if (EQ_BG) return EQ_BG;
+  var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var c = cv.getContext('2d'), i, x, y, seed = 919;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  // a purple alien sky with two moons
+  var sky = ['#1a0a38', '#260e4a', '#34125a', '#44186a', '#562078', '#6a2a84', '#7e368c', '#944490'], bh = 112 / sky.length;
+  for (i = 0; i < sky.length; i++){ c.fillStyle = sky[i]; c.fillRect(0, Math.floor(i * bh), W, Math.ceil(bh) + 1); }
+  c.fillStyle = '#fcfcfc';
+  for (i = 0; i < 60; i++){ c.globalAlpha = 0.3 + r() * 0.7; c.fillRect(Math.floor(r() * W), Math.floor(r() * 70), 1, 1); }
+  c.globalAlpha = 1;
+  c.fillStyle = '#e8d8f8'; c.beginPath(); c.arc(54, 26, 14, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#c8b8e0'; c.beginPath(); c.arc(50, 22, 3, 0, Math.PI * 2); c.fill(); c.beginPath(); c.arc(59, 30, 2, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#f8a868'; c.beginPath(); c.arc(170, 16, 7, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#e88848'; c.fillRect(165, 16, 10, 1);
+  // glowing rock spires and floating islands far away
+  [[20, 70, 10], [100, 60, 8], [150, 74, 12], [236, 56, 9]].forEach(function(sp){
+    for (y = sp[1]; y < 112; y++){ var w = (y - sp[1]) / (112 - sp[1]) * sp[2] + 1; c.fillStyle = '#3a1a5a'; c.fillRect(Math.round(sp[0] - w), y, Math.round(w * 2), 1); c.fillStyle = '#58f8b8'; if (y % 9 === 0) c.fillRect(Math.round(sp[0] - w), y, 1, 1); }
+  });
+  [[120, 34], [212, 40]].forEach(function(is){ c.fillStyle = '#4a2a6a'; c.beginPath(); c.ellipse(is[0], is[1], 14, 4, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = '#58c878'; c.fillRect(is[0] - 12, is[1] - 4, 24, 2); });
+  // the ground: purple soil with glowing grass and hay-colored alien plants
+  c.fillStyle = '#000'; c.fillRect(0, 111, W, 1);
+  c.fillStyle = '#3a2058'; c.fillRect(0, 112, W, FLOOR - 112);
+  c.fillStyle = '#58c878'; c.fillRect(0, 112, W, 2);
+  for (i = 0; i < 70; i++){ c.fillStyle = r() < 0.5 ? '#4a2a68' : '#2a1448'; c.fillRect(Math.floor(r() * W), 114 + Math.floor(r() * (FLOOR - 115)), 2, 1); }
+  for (i = 0; i < 9; i++){ x = 20 + Math.floor(r() * 216); c.fillStyle = '#d8b848'; for (var k = 0; k < 5; k++) c.fillRect(x + k - 2, 112 - 3 - (k % 2) * 2, 1, 3 + (k % 2) * 2); c.fillStyle = '#f8f858'; c.fillRect(x, 106, 1, 1); }
+  c.fillStyle = '#000'; c.fillRect(0, FLOOR, W, 1);
+  c.fillStyle = '#2a1448'; c.fillRect(0, FLOOR + 1, W, H - FLOOR - 1);
+  c.fillStyle = '#58f8b8'; for (i = 0; i < W; i += 23) c.fillRect(i, FLOOR + 5 + (i % 4), 2, 1);
+  EQ_BG = cv;
+  return cv;
+}
+function drawEqHoop(c, g, t, netT, glow){
+  // a crystal pillar holding a glowing backboard with a gold horseshoe on it
+  var px = g.side > 0 ? g.bx + 4 : 0, pw = g.side > 0 ? W - px : g.bx;
+  c.fillStyle = '#000'; c.fillRect(px - 1, g.y - 14, pw + 2, FLOOR - g.y + 14);
+  c.fillStyle = '#4a2a7a'; c.fillRect(px, g.y - 13, pw, FLOOR - g.y + 13);
+  c.fillStyle = '#58f8b8'; for (var k = g.y - 10; k < FLOOR; k += 8) c.fillRect(px + 1, k, Math.max(1, pw - 2), 1);
+  c.fillStyle = '#000'; c.fillRect(g.bx - 1, g.y - 23, 5, 31);
+  c.fillStyle = glow ? (Math.floor(t * 6) % 2 ? '#b8fce8' : '#58f8b8') : '#a8e8f8'; c.fillRect(g.bx, g.y - 22, 3, 29);
+  c.fillStyle = '#f8d800'; c.fillRect(g.bx, g.y - 12, 3, 1); c.fillRect(g.bx, g.y - 8, 1, 4); c.fillRect(g.bx + 2, g.y - 8, 1, 4);
+  drawNet(c, g.rl, g.rr, g.y, netT, 'rgba(252,252,252,.9)');
+  // the horseshoe rim
+  c.fillStyle = '#000'; c.fillRect(g.rl - 1, g.y - 1, RIM_W + 3, 4);
+  c.fillStyle = '#d8b030'; c.fillRect(g.rl, g.y, RIM_W + 1, 2);
+  c.fillStyle = '#f8e070'; for (var n = g.rl + 2; n < g.rr; n += 4) c.fillRect(n, g.y, 1, 1);
+}
+function drawEqPlat(c, q, t, lit, next, order){
+  if (q.gone) return;
+  var x = Math.round(q.x1 + (q.shake > 0 ? Math.sin(t * 60) * 1.5 : 0)), w = q.x2 - q.x1, y = Math.round(q.y), k;
+  c.globalAlpha = q.fade == null ? 1 : q.fade;
+  // a floating chunk of purple rock with a glowing top
+  c.fillStyle = '#000'; c.fillRect(x - 1, y - 1, w + 2, 6); c.fillRect(x + 3, y + 5, w - 6, 3); c.fillRect(x + 8, y + 8, w - 16, 2);
+  c.fillStyle = '#5a3a8a'; c.fillRect(x, y, w, 5); c.fillStyle = '#4a2a7a'; c.fillRect(x + 4, y + 5, w - 8, 2); c.fillRect(x + 9, y + 7, w - 18, 2);
+  c.fillStyle = lit ? '#58f878' : (next ? (Math.floor(t * 6) % 2 ? '#f8f858' : '#58f8b8') : '#58c878'); c.fillRect(x, y, w, 1);
+  // its number
+  c.fillStyle = '#000'; c.fillRect(x + w / 2 - 3, y + 1, 7, 5);
+  c.fillStyle = lit ? '#58f878' : '#f8d800';
+  var D = DIGITS[q.n]; for (k = 0; k < 15; k++) if (D.charAt(k) === '1') c.fillRect(x + w / 2 - 1 + k % 3, y + 1 + Math.floor(k / 3), 1, 1);
+  c.globalAlpha = 1;
+}
+
+function EquusGame(){
+  var G = newWorld(), p = newHero(40);
+  G.hero = p; G.look = LOOK; G.left = 0; G.phase = 'story'; G.lettersMe = 0; G.lettersHim = 0;
+  G.turn = 'none'; G.setter = 'alien'; G.req = null; G.idx = 0; G.rec = []; G.turnT = 0; G.shot = null; G.lit = []; G.round = 0; G.waitT = 0;
+  G.queue = []; G.step = null; G.ui = null; G.uiRev = 0; G.inStep = false;
+  var plats = EQ_PLATS.map(function(d){ return { n: d.n, id: 'eq' + d.n, x1: d.x1, x2: d.x2, y: d.base, d: d, stand: 0, shake: 0, gone: false, back: 0, vy: 0, fade: 1 }; });
+  function livePlats(){ return plats.filter(function(q){ return !q.gone && !q.falling; }); }
+  G.plats = [FLOOR_PLAT].concat(plats);
+  var flies = [{ cx: 80, cy: 40, rx: 34, ry: 12, sp: 0.7, ph: 0, x: 0, y: 0, daze: 0, f: 0, dir: 1 }, { cx: 176, cy: 34, rx: 30, ry: 10, sp: 0.9, ph: 2, x: 0, y: 0, daze: 0, f: 0, dir: 1 }];
+  var A = { x: 220, y: FLOOR, face: -1, anim: 0, on: null, air: false, perf: null, arms: 0 };
+  function mkBall(k){ return { k: k, x: -30, y: FLOOR - BR, vx: 0, vy: 0, rot: 0, free: false, live: false, scored: false, noPick: 0 }; }
+  var myBall = mkBall(0), hisBall = mkBall(2), meHas = true;
+  G.balls = [myBall, hisBall];
+
+  /* ---------- the story ---------- */
+  function say(name, text){ return { say: name, text: text }; }
+  function run(steps){ G.queue = steps.concat(G.queue); if (!G.step && !G.inStep) nextStep(); }
+  function nextStep(){
+    G.step = null; G.inStep = true;
+    while (G.queue.length && !G.step){
+      var s = G.queue.shift();
+      if (s.fn){ s.fn(); continue; }
+      G.step = s;
+      G.ui = s.say ? { name: s.say, text: s.text, shown: 0, col: TALK_COLS[s.say], face: TALK_FACES[s.say] } : null;
+      if (s.wait) s.t = s.wait;
+    }
+    if (!G.step) G.ui = null;
+    G.uiRev++; G.inStep = false;
+  }
+  G.choose = function(){};
+  G.key = function(k){
+    var s = G.step;
+    if (!s) return G.phase !== 'play';
+    if (s.say && (k === 'a' || k === 'b' || k === 'start')){ if (G.ui.shown < s.text.length) G.ui.shown = s.text.length; else { sfx.tick(); nextStep(); } }
+    return true;
+  };
+  function neigh(){ tone(900, 0.12, 'sawtooth', 0.04, 300); tone(700, 0.3, 'sawtooth', 0.04, -400, 0.12); }
+  run([{ wait: 0.5 }, { fn: neigh },
+    say('NEIGHTHAN', 'GREETINGS, EARTHLING. WELCOME TO PLANET EQUUS.'),
+    say('NEIGHTHAN', 'HERE WE PLAY A GAME CALLED... HUMAN.'),
+    say('NEIGHTHAN', 'I DO A TRICK SHOT. YOU COPY IT: SAME PLATFORMS, SAME FLIES, IN ORDER, THEN THE SAME HOOP.'),
+    say('NEIGHTHAN', 'MISS, AND YOU GET A LETTER. SPELL H-U-M-A-N AND YOU LOSE.'),
+    say('YOU', 'OH, LIKE THE GAME HORSE!'),
+    say('NEIGHTHAN', '...HORSE? NEVER HEARD OF IT.'),
+    say('NEIGHTHAN', 'THEN YOU SET ONE FOR ME. MY LETTERS SPELL H-O-R-S-E. WHAT A STRANGE WORD.'),
+    { fn: function(){ G.phase = 'play'; addCheer(G.pops, W / 2, 40, "LET'S PLAY HUMAN!"); neigh(); startRound(); } }]);
+
+  /* ---------- turns ---------- */
+  function startRound(){
+    if (G.done) return;
+    G.round++; G.lit = []; G.idx = 0; G.rec = []; G.shot = null;
+    if (G.setter === 'alien'){
+      G.turn = 'alienSet';
+      addPop(G.pops, W / 2, 30, "NEIGHTHAN'S SHOT: WATCH!", '#58f8b8', true);
+      perform(makeRoute(), Math.random() < 0.85);
+    } else {
+      G.turn = 'set'; G.turnT = EQ_SET_SECS;
+      addPop(G.pops, W / 2, 30, 'YOUR SHOT: SET ONE FOR HIM!', '#fcfc78', true);
+      addPop(G.pops, W / 2, 44, 'HOP PLATFORMS AND FLIES, THEN SCORE', '#fcfcfc');
+    }
+  }
+  function makeRoute(){
+    var n = clamp(1 + Math.floor(G.round / 3) + (Math.random() < 0.5 ? 1 : 0), 1, 3), steps = [], ids = [1, 2, 3, 4].sort(function(){ return Math.random() - 0.5; });
+    for (var k = 0; k < n; k++) steps.push({ kind: 'plat', n: ids[k] });
+    if (Math.random() < 0.45) steps.push({ kind: 'fly' });
+    return { steps: steps, hoop: Math.floor(Math.random() * 2) };
+  }
+  function routeText(req){
+    return req.steps.map(function(s){ return s.kind === 'fly' ? 'FLY' : String(s.n); }).concat([EQ_HOOPS[req.hoop].name]).join(' > ');
+  }
+  function letter(who){
+    if (who === 'me'){
+      G.lettersMe++;
+      addCheer(G.pops, W / 2, 34, '"' + EQ_WORD_ME.charAt(G.lettersMe - 1) + '"!');
+      sfx.over();
+      if (G.lettersMe >= EQ_WORD_ME.length){ endGame(false); return true; }
+    } else {
+      G.lettersHim++; G.score += 5;
+      addCheer(G.pops, W / 2, 34, 'NEIGHTHAN GETS "' + EQ_WORD_HIM.charAt(G.lettersHim - 1) + '"!');
+      neigh();
+      if (G.lettersHim >= EQ_WORD_HIM.length){ endGame(true); return true; }
+    }
+    return false;
+  }
+  // a shot has been decided: hoop is the index it went in, or -1 for a miss
+  function resolve(hoop){
+    var S = G.shot; if (!S || S.done) return; S.done = true;
+    var made = hoop >= 0 && (S.hoop == null || hoop === S.hoop);
+    G.waitT = 1.6;
+    if (G.turn === 'alienSet'){
+      if (made){ G.req = { steps: S.route.steps, hoop: hoop }; G.turn = 'copyWait'; addPop(G.pops, W / 2, 30, 'HE MADE IT. YOUR TURN: COPY IT!', '#fcfc78', true); }
+      else { G.setter = 'me'; G.turn = 'between'; addPop(G.pops, W / 2, 30, 'HE MISSED! YOUR TURN TO SET', '#58f878', true); }
+    } else if (G.turn === 'copy'){
+      if (made){ G.score += 5; addCheer(G.pops, W / 2, 30, 'COPIED IT! +5'); sfx.bonus(); }
+      else if (letter('me')) return;
+      G.setter = 'me'; G.turn = 'between';
+    } else if (G.turn === 'set'){
+      if (made && hoop >= 0){ G.req = { steps: G.rec.slice(), hoop: hoop }; G.turn = 'alienCopyWait'; addPop(G.pops, W / 2, 30, 'NICE! NOW HE HAS TO COPY THAT', '#fcfc78', true); }
+      else { G.setter = 'alien'; G.turn = 'between'; addPop(G.pops, W / 2, 30, 'NO GOOD. HIS TURN TO SET', '#f8a050', true); }
+    } else if (G.turn === 'alienCopy'){
+      if (made){ addPop(G.pops, W / 2, 30, 'HE COPIED IT!', '#58f8b8', true); neigh(); }
+      else if (letter('him')) return;
+      G.setter = 'alien'; G.turn = 'between';
+    }
+  }
+  function startCopy(){
+    G.turn = 'copy'; G.idx = 0; G.turnT = EQ_COPY_SECS;
+    addPop(G.pops, W / 2, 30, 'COPY: ' + routeText(G.req), '#fcfc78', true);
+  }
+  function startAlienCopy(){
+    G.turn = 'alienCopy'; G.lit = [];
+    var hard = G.req.steps.length;
+    perform({ steps: G.req.steps, hoop: G.req.hoop }, Math.random() < clamp(0.85 - hard * 0.13, 0.35, 0.85));
+  }
+
+  /* ---------- Neighthan hops his route and shoots ---------- */
+  function perform(route, willMake){
+    A.perf = { route: route, i: 0, phase: 'pause', t: 0.6, make: willMake, x0: A.x, y0: A.y };
+    G.shot = { who: 'alien', route: route, hoop: route.hoop, done: false };
+  }
+  function platByN(n){ for (var i = 0; i < plats.length; i++) if (plats[i].n === n) return plats[i]; return null; }
+  function stepAlien(dt){
+    var P = A.perf, i;
+    if (A.on){ var q0 = platByN(A.on); if (q0 && !q0.gone){ A.y = q0.y; q0.stand += dt; } else { A.on = null; A.air = true; } }
+    if (!A.on && A.air && (!P || P.phase !== 'hop')){
+      // falling: he lands on the floor
+      A.vy = (A.vy || 0) + GRAV * dt; A.y += A.vy * dt;
+      if (A.y >= FLOOR){ A.y = FLOOR; A.air = false; A.vy = 0; }
+    }
+    if (!P) return;
+    P.t -= dt;
+    if (P.phase === 'pause'){
+      if (P.t > 0) return;
+      if (P.i < P.route.steps.length){
+        var s = P.route.steps[P.i];
+        if (s.kind === 'plat'){ var q = platByN(s.n); if (!q || q.gone || q.falling) { P.t = 0.2; return; } }
+        P.phase = 'hop'; P.k = 0; P.x0 = A.x; P.y0 = A.y; A.on = null; A.air = true; tone(400, 0.1, 'square', 0.03, 300);
+      } else { P.phase = 'aim'; P.t = 0.5; A.face = EQ_HOOPS[P.route.hoop].cx > A.x ? 1 : -1; }
+      return;
+    }
+    if (P.phase === 'hop'){
+      var st = P.route.steps[P.i], tx, ty;
+      if (st.kind === 'plat'){ var tq = platByN(st.n); tx = (tq.x1 + tq.x2) / 2; ty = tq.y; }
+      else { var fl = nearestFly(A.x); tx = fl.x; ty = fl.y - 2; }
+      P.k = Math.min(1, P.k + dt / 0.6);
+      var e = P.k * P.k * (3 - 2 * P.k);
+      A.x = P.x0 + (tx - P.x0) * e; A.y = P.y0 + (ty - P.y0) * e - Math.sin(Math.PI * P.k) * 26; A.face = tx > P.x0 ? 1 : -1; A.anim += dt * 10;
+      if (P.k >= 1){
+        if (st.kind === 'plat'){ A.on = st.n; A.air = false; G.lit.push(st.n); tone(660, 0.08, 'square', 0.04); tone(880, 0.08, 'square', 0.04, 0, 0.08); }
+        else { var f2 = nearestFly(A.x); stompFly(f2); A.air = true; A.vy = -150; G.lit.push('fly'); }
+        P.i++; P.phase = 'pause'; P.t = 0.25;
+      }
+      return;
+    }
+    if (P.phase === 'aim'){
+      A.arms = 1;
+      if (P.t <= 0){ alienShoot(P.route.hoop, P.make); P.phase = 'done'; A.arms = 0; }
+    }
+  }
+  function nearestFly(x){ var best = flies[0]; flies.forEach(function(f){ if (Math.abs(f.x - x) < Math.abs(best.x - x)) best = f; }); return best; }
+  function alienShoot(hk, make){
+    var g = EQ_HOOPS[hk], b = hisBall;
+    b.free = true; b.live = true; b.scored = false; b.x = A.x + A.face * 3; b.y = A.y - 26; b.age = 0;
+    var tx = make ? g.cx : g.cx + (Math.random() < 0.5 ? -1 : 1) * (RIM_W / 2 + 2), rise = b.y - g.y, T = Math.max(0.7, Math.sqrt(2 * Math.max(0, rise) / BALL_G) * 1.25 + 0.2) + Math.abs(tx - b.x) / 500;
+    b.vx = (tx - b.x) / T; b.vy = -rise / T - 0.5 * BALL_G * T; b.clean = make;
+    G.shot.ball = b;
+    tone(500, 0.08, 'square', 0.03);
+  }
+  function stompFly(f){
+    f.daze = 0.8;
+    burst(G.parts, f.x, f.y, 10, ['#c8a838', '#38d848', '#fcfcfc'], 40, 40, 0.5);
+    tone(200, 0.15, 'sawtooth', 0.04, 400); tone(1200, 0.05, 'square', 0.03, -400, 0.1);
+    addPop(G.pops, f.x, f.y - 10, 'BZZT!', '#c8f838');
+  }
+
+  /* ---------- you ---------- */
+  function shoot(pw){
+    var b = myBall, v = 165 + pw * 105;
+    b.free = true; b.live = true; b.scored = false; b.noPick = 0.25; b.age = 0; b.clean = false;
+    b.x = p.x + p.face * 2; b.y = p.y - 17;
+    b.vx = p.face * v * Math.cos(ANG); b.vy = -v * Math.sin(ANG);
+    meHas = false; G.meter = null; sfx.dribble();
+    if (G.turn === 'copy'){
+      G.shot = { who: 'me', hoop: G.req.hoop, done: false, ball: b };
+      if (G.idx < G.req.steps.length){ addPop(G.pops, p.x, p.y - 28, 'YOU SKIPPED A STEP!', '#f86060'); G.shot.skipped = true; }
+    } else if (G.turn === 'set') G.shot = { who: 'me', hoop: null, done: false, ball: b };
+  }
+  // landing on platforms and flies: they count toward the route you're copying or setting
+  function touched(kind, n){
+    if (G.turn === 'copy' && G.req && (!G.shot || G.shot.done)){
+      var need = G.req.steps[G.idx];
+      if (need && need.kind === kind && (kind === 'fly' || need.n === n)){
+        G.idx++; tone(660 + G.idx * 120, 0.08, 'square', 0.04); addPop(G.pops, p.x, p.y - 26, 'STEP ' + G.idx + '!', '#58f878');
+        if (G.idx >= G.req.steps.length) addPop(G.pops, W / 2, 44, 'NOW SCORE IN THE ' + EQ_HOOPS[G.req.hoop].name + '!', '#fcfc78');
+      }
+    } else if (G.turn === 'set' && (!G.shot || G.shot.done) && G.rec.length < 4){
+      var last = G.rec[G.rec.length - 1];
+      if (!(last && last.kind === kind && last.n === n)){ G.rec.push({ kind: kind, n: n }); tone(500 + G.rec.length * 100, 0.06, 'square', 0.03); }
+    }
+  }
+
+  /* ---------- the world ---------- */
+  function stepPlats(dt){
+    plats.forEach(function(q){
+      var d = q.d;
+      if (q.gone){ q.back -= dt; if (q.back <= 0){ q.gone = false; q.falling = false; q.fade = 0; q.stand = 0; q.shake = 0; q.vy = 0; } return; }
+      if (q.fade < 1) q.fade = Math.min(1, q.fade + dt * 2);
+      if (q.falling){ q.vy += 300 * dt; q.y += q.vy * dt; if (q.y > H + 10){ q.gone = true; q.back = 3; } return; }
+      q.y = d.base + Math.sin(G.t * d.sp + d.ph) * d.amp;
+      var onIt = p.ground === q.id || A.on === q.n;
+      if (onIt) q.stand += dt; else q.stand = Math.max(0, q.stand - dt);
+      // stand on it too long and it shakes, crumbles and drops
+      if (q.stand > EQ_STAND && q.shake <= 0){ q.shake = 0.5; tone(120, 0.4, 'square', 0.04, -40); }
+      if (q.shake > 0){ q.shake -= dt; if (q.shake <= 0){ q.falling = true; q.vy = 0; burst(G.parts, (q.x1 + q.x2) / 2, q.y + 3, 12, ['#5a3a8a', '#58c878'], 40, 80, 0.6); if (p.ground === q.id){ p.ground = null; p.vy = 0; } if (A.on === q.n){ A.on = null; A.air = true; A.vy = 0; } } }
+    });
+    G.plats = [FLOOR_PLAT].concat(plats.filter(function(q){ return !q.gone && !q.falling; }));
+  }
+  function stepFlies(dt){
+    flies.forEach(function(f){
+      f.f += dt * 30;
+      if (f.daze > 0){ f.daze -= dt; f.y += 20 * dt; return; }
+      f.ph += dt * f.sp;
+      var nx = f.cx + Math.sin(f.ph) * f.rx, ny = f.cy + Math.sin(f.ph * 2) * f.ry;
+      f.dir = nx > f.x ? 1 : -1; f.x = nx; f.y = ny;
+      if (Math.random() < dt * 0.3) tone(140 + Math.random() * 40, 0.15, 'sawtooth', 0.012);
+      // land on a fly: it bounces you up
+      if (f.daze <= 0 && p.vy > 0 && Math.abs(p.x - f.x) < 8 && p.y > f.y - 6 && p.y < f.y + 4){
+        p.vy = -210; p.ground = null; p.air2 = true; p.jumpHeld = true;
+        stompFly(f); touched('fly', 0);
+      }
+    });
+  }
+  function stepBall(b, h){
+    var py = b.y, i;
+    b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR; b.age += h;
+    for (i = 0; i < 2; i++){
+      var g = EQ_HOOPS[i];
+      if (b.live && !b.scored && py < g.y && b.y >= g.y && b.x > g.rl && b.x < g.rr){
+        b.scored = true; b.vx *= 0.3; g.netT = 0.5; sfx.swish();
+        burst(G.parts, g.cx, g.y + 4, 14, ['#f8d800', '#58f8b8', '#fcfcfc'], 60, 40, 0.8);
+        if (G.shot && G.shot.ball === b) resolve(G.shot.skipped ? -1 : i);
+      }
+      if (b.clean && b.live && !b.scored) continue;
+      [g.rl, g.rr].forEach(function(px){
+        var dx = b.x - px, dy = b.y - g.y, d = hyp(dx, dy);
+        if (d < BR + 1 && d > 0){
+          var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
+          b.x = px + nx * (BR + 1); b.y = g.y + ny * (BR + 1);
+          if (vn < 0){ b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; } }
+        }
+      });
+      if (g.side > 0 && b.y > g.y - 22 - BR && b.y < g.y + 6 + BR && b.x + BR > g.bx && b.x < g.bx + 2 && b.vx > 0){ b.x = g.bx - BR; b.vx = -b.vx * 0.55; sfx.board(); }
+      if (g.side < 0 && b.y > g.y - 22 - BR && b.y < g.y + 6 + BR && b.x - BR < g.bx + 3 && b.x > g.bx + 1 && b.vx < 0){ b.x = g.bx + 3 + BR; b.vx = -b.vx * 0.55; sfx.board(); }
+    }
+    // shots bounce off the horse flies
+    if (b.live && !b.clean) flies.forEach(function(f){ if (Math.abs(b.x - f.x) < 7 && Math.abs(b.y - f.y) < 5){ b.vx *= -0.5; b.vy = -Math.abs(b.vy) * 0.4; tone(300, 0.06, 'square', 0.03); } });
+    if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
+    if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
+    if (b.vy >= 0){
+      for (i = 0; i < G.plats.length; i++){
+        var q = G.plats[i];
+        if (py + BR <= q.y + 0.5 && b.y + BR >= q.y && b.x > q.x1 && b.x < q.x2){
+          b.y = q.y - BR;
+          if (b.live && !b.scored && G.shot && G.shot.ball === b) resolve(-1);
+          b.live = false;
+          if (b.vy > 25){ b.vy = -b.vy * 0.55; b.vx *= 0.85; } else { b.vy = 0; b.vx *= Math.pow(0.3, h); if (Math.abs(b.vx) < 2) b.vx = 0; }
+          break;
+        }
+      }
+    }
+  }
+
+  G.update = function(dt){
+    var i;
+    G.t += dt; G.rimSnd -= dt; G.shake = Math.max(0, G.shake - dt);
+    EQ_HOOPS.forEach(function(g){ g.netT = Math.max(0, (g.netT || 0) - dt); });
+    var s = G.step;
+    if (s){
+      if (s.say && G.ui) G.ui.shown += dt * 45;
+      else if (s.wait){ s.t -= dt; if (s.t <= 0) nextStep(); }
+    }
+    stepPlats(dt); stepFlies(dt); stepAlien(dt);
+    if (G.phase === 'play'){
+      var mv = (G.meter && p.ground) ? 0 : (inp.l ? -1 : (inp.r ? 1 : 0));
+      if (G.meter && p.ground && (inp.l || inp.r)) p.face = inp.l ? -1 : 1;
+      p.jumpHeld = inp.a || inp.u;
+      var wasG = p.ground;
+      stepHero(G, p, dt, mv);
+      if (p.ground && p.ground !== wasG){
+        if (p.ground === 'floor'){
+          // touching the ground starts the route over
+          if (G.turn === 'copy' && G.idx > 0 && G.idx < G.req.steps.length && (!G.shot || G.shot.done)){ G.idx = 0; addPop(G.pops, p.x, p.y - 26, 'BACK TO STEP 1', '#f8a050'); }
+          if (G.turn === 'set' && (!G.shot || G.shot.done)) G.rec = [];
+        } else { var pq = plats.filter(function(q){ return q.id === p.ground; })[0]; if (pq) touched('plat', pq.n); }
+      }
+      if (G.meter){
+        if (!meHas) G.meter = null;
+        else { G.meter.p += G.meter.dir * dt / (p.ground ? 1.4 : 0.55); if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; } }
+      }
+      // your ball: in your hands, or flying, or coming back to you
+      if (meHas){
+        var before = Math.floor(p.dp / Math.PI); p.dp += dt * (p.vx ? 9 : 6);
+        if (G.meter || !p.ground){ myBall.x = p.x + p.face * 2; myBall.y = p.y - 17; }
+        else { if (Math.floor(p.dp / Math.PI) !== before) sfx.dribble(); myBall.x = p.x + p.face * 6; myBall.y = p.y - BR - Math.abs(Math.sin(p.dp)) * 8; myBall.rot += dt * p.face * 4; }
+      } else {
+        myBall.noPick -= dt;
+        var loose = !myBall.live || myBall.scored || (myBall.vy > 0 && myBall.age > 0.3);
+        if ((loose && myBall.noPick <= 0 && Math.abs(myBall.x - p.x) < 8 && myBall.y > p.y - 22 && myBall.y < p.y + 2) || myBall.age > 3){ meHas = true; myBall.free = false; myBall.live = false; sfx.dribble(); }
+      }
+      // his ball comes back to him after a shot
+      if (hisBall.free && hisBall.age > 2.4){ hisBall.free = false; hisBall.live = false; }
+      if (!hisBall.free){ hisBall.x = A.x + A.face * (A.arms ? 3 : 7); hisBall.y = A.arms ? A.y - 26 : A.y - 10; }
+      for (i = 0; i < 2; i++){ var b = G.balls[i]; if (b.free) for (var k = 0; k < 3; k++) stepBall(b, dt / 3); }
+      if (G.shot && !G.shot.done && G.shot.ball && G.shot.ball.age > 4) resolve(-1);
+      // the turn clock
+      if ((G.turn === 'copy' || G.turn === 'set') && (!G.shot || G.shot.done)){
+        G.turnT -= dt;
+        if (G.turnT <= 0){ addPop(G.pops, W / 2, 40, "TIME'S UP!", '#f86060', true); G.shot = { done: false }; resolve(-1); }
+      }
+      if (G.waitT > 0){
+        G.waitT -= dt;
+        if (G.waitT <= 0){
+          if (G.turn === 'copyWait') startCopy();
+          else if (G.turn === 'alienCopyWait') startAlienCopy();
+          else if (G.turn === 'between'){ A.perf = null; startRound(); }
+        }
+      }
+      if (A.perf && A.perf.phase === 'done' && G.shot && G.shot.done && !A.air && !A.on) A.perf = null;
+    }
+    stepFx(G.parts, G.pops, dt);
+  };
+  function endGame(win){
+    G.phase = 'story'; G.meter = null; G.turn = 'none';
+    if (win) G.score += 20;
+    run([{ wait: 1.6 }].concat(win ? [
+      say('NEIGHTHAN', 'H-O-R-S-E... I AM A... HORSE?'),
+      say('NEIGHTHAN', 'NEIGH! YOU ARE A WORTHY EARTHLING.')] : [
+      say('NEIGHTHAN', 'H-U-M-A-N! YOU ARE A HUMAN. HA!'),
+      say('YOU', 'I MEAN... I AM A HUMAN.')]).concat([
+      { fn: function(){ G.clearText = win ? 'YOU WIN AT HUMAN!' : 'NEIGHTHAN WINS!'; G.done = true; } }]));
+  }
+
+  G.draw = function(v){
+    var c = v.c, t = G.t, i;
+    gameXf(v);
+    c.drawImage(equusBg(), 0, 0);
+    var req = G.turn === 'copy' ? G.req : null, nextN = req && G.req.steps[G.idx] && G.req.steps[G.idx].kind === 'plat' ? G.req.steps[G.idx].n : -1;
+    EQ_HOOPS.forEach(function(g){ drawEqHoop(c, g, t, g.netT || 0, req && req.hoop === g.i && G.idx >= req.steps.length); });
+    plats.forEach(function(q){
+      var lit = G.lit.indexOf(q.n) >= 0 && (G.turn === 'alienSet' || G.turn === 'copyWait' || G.turn === 'alienCopy');
+      if (req) lit = req.steps.slice(0, G.idx).some(function(s){ return s.kind === 'plat' && s.n === q.n; });
+      drawEqPlat(c, q, t, lit, q.n === nextN, 0);
+    });
+    flies.forEach(function(f){ var fr = HFLY_SPR[Math.floor(f.f) % 2]; c.drawImage(f.dir > 0 ? fr.r : fr.l, Math.round(f.x - 7), Math.round(f.y - 5)); });
+    // Neighthan
+    var ax = Math.round(A.x), ay = Math.round(A.y), fr2 = NEIGH_SPR[A.air || A.perf && A.perf.phase === 'hop' ? 2 : (Math.floor(A.anim) % 2 && A.perf && A.perf.phase === 'hop' ? 1 : 0)];
+    c.drawImage(A.face > 0 ? fr2.r : fr2.l, ax - 9, ay - 25);
+    if (A.arms){ c.fillStyle = '#000'; pxLine(c, ax + A.face * 2, ay - 14, ax + A.face * 3, ay - 25, 3); c.fillStyle = '#58c878'; pxLine(c, ax + A.face * 2 + 1, ay - 13, ax + A.face * 3 + 1, ay - 24, 1); }
+    c.fillStyle = Math.floor(t * 4) % 2 ? '#58f8f8' : '#a8fcfc'; c.fillRect(ax - A.face * 4, ay - 21, 1, 1);
+    drawHero(c, G.look, p, meHas && (!!G.meter || !p.ground));
+    if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
+    G.balls.forEach(function(b){ if (b.x > -10) drawBall(c, b.x, b.y, b.rot, b.k); });
+    drawParts(c, G.parts);
+    // the letters
+    var ls = nameSize(v);
+    for (i = 0; i < 5; i++){
+      vText(v, EQ_WORD_ME.charAt(i), 12 + i * 9, 9, i < G.lettersMe ? '#f86060' : '#5a4a7a', ls);
+      vText(v, EQ_WORD_HIM.charAt(i), W - 48 + i * 9, 9, i < G.lettersHim ? '#f86060' : '#5a4a7a', ls);
+    }
+    vText(v, 'YOU', 30, 19, '#fcfcfc', Math.round(ls * 0.7)); vText(v, 'NEIGHTHAN', W - 30, 19, '#58f8b8', Math.round(ls * 0.7));
+    vText(v, 'NEIGHTHAN', A.x, Math.min(H - 5, A.y + 6), '#58f8b8', Math.round(ls * 0.7));
+    // the route chips along the bottom: what to copy, or what you've set so far
+    var chips = req ? req.steps.map(function(s2, n){ return { t: s2.kind === 'fly' ? 'FLY' : String(s2.n), done: n < G.idx }; }).concat([{ t: req.hoop ? 'RIGHT' : 'LEFT', done: false }])
+      : (G.turn === 'set' ? G.rec.map(function(s3){ return { t: s3.kind === 'fly' ? 'FLY' : String(s3.n), done: true }; }) : []);
+    if (chips.length){
+      var cw = 26, x0 = W / 2 - chips.length * cw / 2;
+      c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(x0 - 3, H - 12, chips.length * cw + 4, 11);
+      chips.forEach(function(ch, n){ vText(v, ch.t, x0 + n * cw + cw / 2, H - 6, ch.done ? '#58f878' : (n === G.idx && req ? (Math.floor(t * 6) % 2 ? '#f8f858' : '#fcfcfc') : '#c8c8d8'), Math.round(ls * 0.8)); });
+    }
+    if ((G.turn === 'copy' || G.turn === 'set') && (!G.shot || G.shot.done)) vText(v, ':' + Math.ceil(G.turnT), W / 2, 28, G.turnT < 6 ? '#f86060' : '#fcfcfc', ls);
+    drawPops(v, G.pops);
+  };
+  G.press = function(k){
+    if (G.phase !== 'play') return;
+    if (k === 'jump') heroJump(G, p);
+    else if (k === 'drop') heroDrop(p);
+    else if (k === 'shoot'){
+      if (G.turn !== 'copy' && G.turn !== 'set'){ addPop(G.pops, p.x, p.y - 22, 'WAIT YOUR TURN', '#fcfcfc'); return; }
+      if (G.shot && !G.shot.done){ return; }
+      if (!meHas){ addPop(G.pops, p.x, p.y - 22, 'GET YOUR BALL', '#fcfcfc'); return; }
+      G.meter = { p: 0, dir: 1 };
+    }
+  };
+  G.release = function(k){ if (k === 'shoot' && G.meter && meHas) shoot(G.meter.p); };
+  G.hud = function(){
+    var info = G.turn === 'copy' ? 'COPY HIS SHOT' : G.turn === 'set' ? 'SET A SHOT FOR HIM' : (G.turn === 'alienSet' ? "NEIGHTHAN'S SHOT" : (G.turn === 'alienCopy' ? 'HE IS COPYING YOU' : ''));
+    return { balls: -1, info: info, time: '' };
+  };
+  G.skipIntro = function(){ G.queue = []; G.step = null; G.ui = null; G.uiRev++; G.phase = 'play'; startRound(); };   // handy for testing
+  G.alien = A; G.platsList = plats; G.fliesList = flies;
+  return G;
+}
+
+/* ============================================================
    THE BOARDS
 ============================================================ */
 var BOARDS = [
@@ -5226,7 +5731,9 @@ var BOARDS = [
   { id: 'cyber', name: 'CYBER COURT', sub: 'A NEON MACHINE WORLD: BEAT BOLT THE ROBOT AND DODGE THE DRONE BIRDS', make: CyberGame,
     how: 'BEAT BOLT IN 2 MINUTES. MAINFRAME 3, HOLO-HOOPS 2 (THEY WARP WHEN SOMEONE SCORES)<br>RIDE THE HOVER PADS. BOLT OVERHEATS AFTER 3 SHOTS: THAT IS YOUR CHANCE<br>SHOOT DOWN DRONE BIRDS +3. RED-EYED DRONES ZAP: MOVE OFF THE RED LASER!<br>5 BASKETS OR DRONES = OVERCLOCK: SLOW TIME, LOCK-ON SHOTS, x2, AND THE UPLOAD DUNK' },
   { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
-    how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' }
+    how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' },
+  { id: 'equus', name: 'PLANET EQUUS', sub: 'A GAME OF HUMAN AGAINST NEIGHTHAN THE HORSE ALIEN', make: EquusGame,
+    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>PLATFORMS DROP IF YOU STAND ON THEM TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
