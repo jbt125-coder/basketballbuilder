@@ -2588,7 +2588,7 @@ function drawSnowman(c, S, t){
     c.fillRect(ex + sd * 2, ey - 1, 1, 1); c.fillRect(ex, ey + (up ? -2 : 2), 1, 1); c.fillRect(ex + sd * 3, ey + (up ? 0 : 1), 1, 1); c.fillRect(ex, ey, 1, 1);
   }
   // when he guards, he drops his ball on the ice behind him
-  if (!dribble && !S.hot) drawBall(c, x - f * 13, y - BR, 0, 0);
+  if (!dribble && !S.hot && !S.noBall) drawBall(c, x - f * 13, y - BR, 0, 0);
   arm(-f);
   // stick legs in sneakers, walking when he moves
   var step = Math.abs(S.vx) > 3 ? Math.round(Math.sin(S.walk) * 2) : 0;
@@ -2641,7 +2641,7 @@ function drawSnowman(c, S, t){
   plaid(c, x - f * 6 - 1, hy + 9, 3, 8);
   c.fillStyle = '#4a6a98'; c.fillRect(x - f * 6 - 1, hy + 17, 1, 2); c.fillRect(x - f * 6 + 1, hy + 17, 1, 2);
   // the front arm goes on last so his hand sits on top of the ball
-  if (dribble) drawBall(c, ballX, ballY, S.dp * f, 0);
+  if (dribble && !S.noBall) drawBall(c, ballX, ballY, S.dp * f, 0);
   arm(f);
   // melting a little in the magic heat
   if (S.hot){ c.fillStyle = '#a8daf4'; for (k = 0; k < 3; k++) c.fillRect(x - 6 + k * 6, by + 4 + Math.floor((t * 6 + k * 3) % 4), 1, 2); }
@@ -2769,7 +2769,7 @@ function IceGame(){
     if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
     if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
     // the snowman swats your shots: his body, or his stick arms when they're up
-    if (b.own === 'me' && b.live && !b.blocked && !S.hot && Math.abs(b.x - S.x) < 8 && b.y > FLOOR - (38 + S.arms * 12) && b.y < FLOOR - 2) snowBlock(b);
+    if (b.own === 'me' && b.live && !b.blocked && !S.hot && !G.oop && Math.abs(b.x - S.x) < 8 && b.y > FLOOR - (38 + S.arms * 12) && b.y < FLOOR - 2) snowBlock(b);
     if (b.scored && Math.abs(b.vx) + Math.abs(b.vy) > 30){                    // only a ball that went through a hoop can bonk a penguin
       for (i = 0; i < G.pengs.length; i++){
         var pg = G.pengs[i];
@@ -2811,7 +2811,7 @@ function IceGame(){
         }
         if (Math.abs(tx - S.x) < 9 && ty > FLOOR - 44 && ty < FLOOR - 20){
           S.mood = 'sad'; S.moodT = 1.5; S.shiver = 0.5;
-          if (ic.by === 'me'){ gain(3); addPop(G.pops, S.x, FLOOR - 52, 'SNOWMAN BONKED! +3', '#fcfc78'); } else addPop(G.pops, S.x, FLOOR - 52, 'HEY!', '#d8f2ff');
+          if (ic.by === 'me'){ gain(3); addPop(G.pops, S.x, FLOOR - 52, 'SNOWMAN BONKED! +3', '#fcfc78'); if (!G.oop) startOop(); } else addPop(G.pops, S.x, FLOOR - 52, 'HEY!', '#d8f2ff');
           breakIcicle(ic, tx, ty); continue;
         }
         if (ty >= FLOOR) breakIcicle(ic, tx, FLOOR - 2);
@@ -2886,11 +2886,110 @@ function IceGame(){
     }
     if (k >= 1){ h.y = FLOOR; h.ground = 'floor'; B.dunk = null; burst(G.parts, h.x, FLOOR, 10, ['#fcfcfc', '#a8daf4'], 40, 40, 0.5); }
   }
+  /* ---------- bear magic: hit the snowman with an icicle and he gets mad. He alley-oops the bear up to the
+     middle rim for three dunks in a row, then shoots a magic ball that splits into every hoop. All for the bear. ---------- */
+  var OOP_SNOW_X = 104, OOP_BEAR_X = 146;
+  function startOop(){
+    G.oop = { ph: 'mad', t: 0, n: 0, balls: [], ballX: null, ballY: 0, split: false };
+    B.meter = null; B.dunk = null; B.dunkPlan = false; B.stun = 0; B.spot = null;
+    B.has = true; B.ball.free = false; B.ball.live = false;
+    S.mood = 'mad'; S.moodT = 99; S.shiver = 0.9;
+    addPop(G.pops, S.x, FLOOR - 56, "THAT'S IT!!", '#f86060', true);
+    tone(140, 0.4, 'sawtooth', 0.05, -60); hiss(0.3, 0.05, 600);
+  }
+  function oopSlide(o, tx, sp, dt){ var d = tx - o; return o + sgn(d) * Math.min(Math.abs(d), sp * dt); }
+  function stepOop(dt){
+    var O = G.oop, h = B.h, g = iceGeo(1, G.t), cx = (g.rl + g.rr) / 2, base = g.y + B.top - 2, k;
+    O.t += dt;
+    if (O.ph === 'mad'){
+      if (O.t > 1){ O.ph = 'gather'; O.t = 0; addCheer(G.pops, W / 2, 34, 'ALLEY-OOP!'); tone(110, 0.5, 'sawtooth', 0.05, 80); }
+    } else if (O.ph === 'gather'){
+      var sx0 = S.x; S.x = oopSlide(S.x, OOP_SNOW_X, 80, dt); S.vx = (S.x - sx0) / dt; S.face = 1;
+      var hx0 = h.x; h.x = oopSlide(h.x, OOP_BEAR_X, 85, dt); h.vx = (h.x - hx0) / dt; h.face = -1; h.anim += dt * 10; h.y = FLOOR; h.ground = 'floor';
+      if ((Math.abs(S.x - OOP_SNOW_X) < 1 && Math.abs(h.x - OOP_BEAR_X) < 1) || O.t > 3.5){
+        O.ph = 'lob'; O.t = 0; S.vx = 0; h.vx = 0; O.bx0 = S.x + 8; O.by0 = FLOOR - 28;
+        sfx.dribble();
+      }
+    } else if (O.ph === 'lob'){
+      // the snowman lobs it up, the bear goes up to meet it at the rim
+      k = Math.min(1, O.t / 0.8);
+      O.ballX = O.bx0 + (cx - O.bx0) * k; O.ballY = O.by0 + (g.y - 10 - O.by0) * k - Math.sin(Math.PI * k) * 34;
+      var kb = clamp((k - 0.3) / 0.7, 0, 1);
+      h.x = OOP_BEAR_X + (cx + 2 - OOP_BEAR_X) * kb; h.y = FLOOR - (FLOOR - base) * Math.sin(kb * Math.PI / 2) - Math.sin(kb * Math.PI) * 10;
+      h.ground = kb > 0 ? null : 'floor'; h.face = -1;
+      if (k >= 1){ O.ph = 'dunks'; O.t = 0; O.n = 0; }
+    } else if (O.ph === 'dunks'){
+      // three dunks in a row: pull up on the rim, slam it through, again and again
+      var cyc = O.t % 0.6, n = Math.floor(O.t / 0.6);
+      h.x = cx + 2; h.ground = null;
+      h.y = cyc < 0.3 ? base - 7 * (cyc / 0.3) : base + 2;
+      O.ballX = cx; O.ballY = cyc < 0.3 ? h.y - B.top : g.y + 4 + (cyc - 0.3) * 30;
+      if (cyc >= 0.3 && O.n === n && n < 3){
+        O.n++;
+        G.them += g.pts; G.netH = 1; G.netT = 0.5; G.shake = 0.45;
+        addCheer(G.pops, W / 2, 30, 'BEAR DUNK x' + O.n + '!');
+        addPop(G.pops, cx, g.y + 18, 'BEAR +' + g.pts, '#c8e0ff');
+        burst(G.parts, cx, g.y, 18, ['#fcfcfc', '#58d8f8', '#f8d800'], 70, 40, 0.8);
+        sfx.swish(); tone(90, 0.3, 'sawtooth', 0.06, -30);
+        if (O.n === 3) fireworks(G.parts, 2);
+      }
+      if (O.t >= 1.8){ O.ph = 'fall'; O.t = 0; O.fy = h.y; O.bfy = O.ballY; }
+    } else if (O.ph === 'fall'){
+      k = Math.min(1, O.t / 0.45);
+      h.y = O.fy + (FLOOR - O.fy) * k * k;
+      O.ballY = O.bfy + (FLOOR - BR - O.bfy) * k * k;
+      if (k >= 1){
+        h.y = FLOOR; h.ground = 'floor'; O.ballX = null;
+        burst(G.parts, h.x, FLOOR, 12, ['#fcfcfc', '#a8daf4'], 50, 40, 0.5);
+        O.ph = 'snowshot'; O.t = 0;
+        addCheer(G.pops, W / 2, 34, 'SNOWMAN MAGIC!');
+        sfx.bonus();
+      }
+    } else if (O.ph === 'snowshot'){
+      // the snowman's magic ball goes up, splits three ways, and drops through every hoop
+      if (!O.split){
+        k = Math.min(1, O.t / 0.5);
+        O.ballX = S.x; O.ballY = FLOOR - 42 - k * 64;
+        if (Math.random() < 0.6) G.parts.push({ x: O.ballX + rand(-2, 2), y: O.ballY + 4, vx: 0, vy: 20, g: 0, life: 0.4, c: pick(MAGIC_COLS) });
+        if (k >= 1){
+          O.split = true; O.ballX = null;
+          for (var i = 0; i < 3; i++) O.balls.push({ i: i, x0: S.x, y0: FLOOR - 106, u: -i * 0.08, x: S.x, y: FLOOR - 106 });
+          burst(G.parts, S.x, FLOOR - 106, 24, MAGIC_COLS, 70, 0, 0.8);
+          tone(600, 0.3, 'square', 0.05, 900);
+        }
+      } else {
+        for (var j = O.balls.length - 1; j >= 0; j--){
+          var mb = O.balls[j], hg = iceGeo(mb.i, G.t), tx = (hg.rl + hg.rr) / 2;
+          mb.u += dt / 0.7;
+          var u = clamp(mb.u, 0, 1);
+          mb.x = mb.x0 + (tx - mb.x0) * u; mb.y = mb.y0 + (hg.y - 2 - mb.y0) * u - Math.sin(Math.PI * u) * 24;
+          if (Math.random() < 0.5) G.parts.push({ x: mb.x, y: mb.y, vx: 0, vy: 0, g: 0, life: 0.3, c: pick(MAGIC_COLS) });
+          if (mb.u >= 1){
+            G.them += hg.pts; G.netH = mb.i; G.netT = 0.5;
+            addPop(G.pops, tx, hg.y + 18, 'BEAR +' + hg.pts, '#c8e0ff');
+            burst(G.parts, tx, hg.y + 4, 12, ['#f8d800', '#fcfcfc'].concat(MAGIC_COLS), 60, 40, 0.8);
+            sfx.swish();
+            O.balls.splice(j, 1);
+          }
+        }
+        if (!O.balls.length){
+          G.oop = null; S.mood = 'happy'; S.moodT = 1.5; S.modeT = 1; B.spot = null;
+          addPop(G.pops, W / 2, 50, 'BEAR MAGIC: +25', '#c8e0ff', true);
+        }
+      }
+    }
+  }
   /* ---------- the snowman: glides around and decides when to guard you hardest ---------- */
   function stepSnowman(dt){
     S.shiver = Math.max(0, S.shiver - dt);
     if ((S.moodT -= dt) <= 0) S.mood = S.mode === 'guard' ? 'mad' : '';
     S.dp += dt * (6 + Math.abs(S.vx) * 0.15); S.walk += dt * Math.abs(S.vx) * 0.5;
+    S.noBall = !!G.oop;
+    if (G.oop){
+      var ot = G.oop.ph === 'lob' || G.oop.ph === 'snowshot' ? 1 : 0.2;
+      S.arms += (ot - S.arms) * Math.min(1, dt * 8);
+      return;
+    }
     S.hot = !!G.magic;                                                     // magic is too hot to handle
     S.modeT -= dt;
     if (S.modeT <= 0){
@@ -3058,7 +3157,8 @@ function IceGame(){
         if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
       }
     }
-    if (B.stun > 0){ B.stun -= dt; stepHero(G, B.h, dt, 0); }
+    if (G.oop) stepOop(dt);
+    else if (B.stun > 0){ B.stun -= dt; stepHero(G, B.h, dt, 0); }
     else if (B.dunk) stepBearDunk(dt); else stepHero(G, B.h, dt, bearThink(dt));
     if (me.has) holdBall(me, dt, !!G.meter || G.hang()); else looseBall(me, dt);
     if (B.has){
@@ -3071,6 +3171,7 @@ function IceGame(){
         if (Math.floor(B.h.dp / Math.PI) !== bdp) tone(90, 0.04, 'square', 0.015, -30);
       }
     } else looseBall(B, dt);
+    if (G.oop){ B.ball.x = -40; B.ball.free = false; B.ball.live = false; }   // his own ball waits while he's busy
     stepSnowman(dt);
     stepIcicles(dt);
     stepPenguins(dt);
@@ -3103,7 +3204,7 @@ function IceGame(){
     drawSnowman(c, S, t);
     var bh = B.h, bx = Math.round(bh.x), byy = Math.round(bh.y), bf = bh.face;
     var bfr = BEAR.frames[!bh.ground ? 2 : (Math.abs(bh.vx) > 3 && Math.floor(bh.anim * 0.7) % 2 ? 1 : 0)];
-    var armsUp = !!B.meter || !!B.dunk;
+    var armsUp = !!B.meter || !!B.dunk || (G.oop && (G.oop.ph === 'lob' || G.oop.ph === 'dunks'));
     // the arm away from us goes behind him
     function bearArm(sd, up){
       var sx = bx + sd * 5, sy = byy - 15, ex = up ? bx + sd * 3 + bf * 2 : bx + sd * 7 + (sd === bf && B.has ? 1 : 0), ey = up ? byy - 27 : byy - 8;
@@ -3127,6 +3228,11 @@ function IceGame(){
     if (B.meter) drawMeter(c, bh.x - bh.face * 9, bh.y - 4, B.meter.p);
     for (i = 0; i < balls.length; i++) if (balls[i].x > -10) drawBall(c, balls[i].x, balls[i].y, balls[i].rot, balls[i].k);
     for (i = 0; i < G.mballs.length; i++) if (G.mballs[i].delay <= 0) drawBall(c, G.mballs[i].x, G.mballs[i].y, t * 12, G.mballs[i].k);
+    if (G.oop){
+      var O = G.oop;
+      if (O.ballX != null) drawBall(c, O.ballX, O.ballY, t * 10, 0);
+      for (var oi = 0; oi < O.balls.length; oi++) drawBall(c, O.balls[oi].x, O.balls[oi].y, t * 12, 0);
+    }
     drawParts(c, G.parts);
     for (i = 0; i < 3; i++) vText(v, gs[i].pts + ' PTS', gs[i].cx, gs[i].y + 19, '#fcfcfc', nameSize(v));
     c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(W / 2 - 46, ICE_CEIL + 13, 92, 12);
@@ -3150,9 +3256,10 @@ function IceGame(){
   };
   G.release = function(k){ if (k === 'shoot' && G.meter && me.has) shootBall(me, G.meter.p); };
   G.hud = function(){
+    if (G.oop) return { balls: -1, info: 'BEAR MAGIC!' };
     return { balls: -1, info: G.magic ? (G.magic.turbo ? 'TURBO SLAM!' : 'MAGIC ' + Math.ceil(G.magic.left)) : 'PENGUINS ' + G.bonks + '/' + ICE_BONKS };
   };
-  G.startMagic = startMagic; G.bear = B; G.snowman = S;                   // handy for testing
+  G.startMagic = startMagic; G.startOop = startOop; G.bear = B; G.snowman = S;                   // handy for testing
   return G;
 }
 
