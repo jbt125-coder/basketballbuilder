@@ -2391,31 +2391,20 @@ function outlined(img){
   x.drawImage(img, 1, 1);
   return c;
 }
-/* the polar bear, seen from the side: on all fours when he walks, up on his back legs to shoot */
+/* the polar bear: up on two feet like a player, in a blue #77 jersey, shorts and blue high-tops.
+   Arms are drawn separately so they can hang at his sides or go up to shoot and dunk. */
 var BEAR = (function(){
-  var pal = { w: '#f6f6f2', g: '#c4ccd8', k: '#101010', r: '#d82800' };
-  var BODY = [
-    '.....................ww...',
-    '....wwwwwwww........wgww..',
-    '..wwwwwwwwwwwwww...wwwwww.',
-    '.wwwwwwwwwwwwwwwwwwwwwwkww',
-    '.wwwwwwwwwwwwwwwwwwwwwwwwk',
-    'wwwwwwwwwwwwwwwwwwwwwwwww.',
-    'wwwwwwwwwwwwwwwwwwwwwkk...',
-    'gwwwwwwwwwwwwwwwwwwww.....',
-    'gwwwwwwwwwwwwwwwwwwww.....',
-    '.ggwwwwwwgggggwwwwwg......'];
-  // a red scarf around his neck
-  for (var n = 2; n <= 8; n++) BODY[n] = BODY[n].slice(0, 17) + 'rr' + BODY[n].slice(19);
+  var pal = { w: '#f6f6f2', g: '#c4ccd8', k: '#101010', B: '#2858d0', b: '#1a3a98', n: '#fcfcfc', S: '#2858d0', s: '#fcfcfc' };
+  var TOP = [
+    '.....ww...ww....', '....wgww.wwgw...', '....wwwwwwwww...', '...wwwwwwwkwww..', '...wwwwwwwwwwwwk', '...wwwwwwwwwwww.',
+    '....wwwwwwwkk...', '.....wwwwwww....', '....nBBBBBBn....', '....nBBBBBBn....', '....nnnBnnnB....', '....BBnBBBnB....',
+    '....BnBBBnBB....', '....BBBBBBBB....', '....nnnnnnnn....', '....BBBBBBBB....', '....BBBnnBBB....', '....BBB..BBB....'];
   var LEGS = [
-    ['..wwww.gg.....wwww.gg.....', '..wwww.gg.....wwww.gg.....', '..wwww.gg.....wwww.gg.....', '..gggg.gg.....gggg.gg.....'],
-    ['.wwww...gg....wwww...gg...', 'wwww....gg...wwww....gg...', 'wwww.....gg..wwww.....gg..', 'gggg.....gg..gggg.....gg..']];
-  var UP = [
-    '.......ww.....', '......wgww....', '.....wwwwww...', '.....wwwwkww..', '.....wwwwwwwwk', '.....wwwwwwkk.',
-    '....rrrrrrr...', '...wrrrrrrw...', '..wwwwwwwwww..', '.wwwwwwwwwww..', '.wwwwwwwwwww..', '.wwwwwwwwwww..',
-    '.gwwwwwwwwwg..', '.gwwwwwwwwwg..', '..gwwwwwwwg...', '..wwww.wwww...', '..wwww.wwww...', '..wwww.wwww...', '.ggggg.ggggg..'];
+    ['....www..www....', '....www..www....', '...SSSS.SSSS....', '...ssss.ssss....'],
+    ['...www....www...', '...www.....www..', '..SSSS.....SSSS.', '..ssss.....ssss.'],
+    ['.....www.www....', '.....www.www....', '....SSSSSSSS....', '....sssssssss...']];
   function pr(rows){ var a = outlined(makeSpriteP(rows, pal)); return { r: a, l: flipC(a) }; }
-  return { walk: [pr(BODY.concat(LEGS[0])), pr(BODY.concat(LEGS[1]))], up: pr(UP) };
+  return { frames: LEGS.map(function(l){ return pr(TOP.concat(l)); }) };
 })();
 var PENGUIN_SPR = (function(){
   var pal = { k: '#141824', w: '#fcfcfc', y: '#f8b000', e: '#fcfcfc' };
@@ -2631,7 +2620,7 @@ function IceGame(){
   G.mballs = []; G.netH = -1;
   function mkBall(k, own){ return { k: k, own: own, x: -30, y: FLOOR - BR, vx: 0, vy: 0, rot: 0, free: false, live: false, noPick: 0, rest: 0 }; }
   var me = { h: p, ball: mkBall(0, 'me'), has: true, noBallT: 0, top: 17 };
-  var B = { h: newHero(200), ball: mkBall(2, 'bear'), has: true, noBallT: 0, top: 25, meter: null, spot: null, hoop: 0, thinkT: 0, target: 0 };
+  var B = { h: newHero(200), ball: mkBall(2, 'bear'), has: true, noBallT: 0, top: 31, meter: null, spot: null, dunk: null, dunkPlan: false, hoop: 0, thinkT: 0, target: 0 };
   B.h.face = -1; B.h.grip = true;                                      // polar bear claws grip the ice
   var S = { x: 150, vx: 0, face: -1, mode: 'wander', modeT: 2, tx: 150, arms: 0, shiver: 0, hot: false, mood: '', moodT: 0, dp: 0, walk: 0 };
   var balls = [me.ball, B.ball];
@@ -2769,6 +2758,8 @@ function IceGame(){
     } else if (B.spot == null){
       var r = Math.random();
       B.hoop = r < 0.5 ? 0 : (r < 0.82 ? 2 : 1);
+      B.dunkPlan = B.hoop === 0 && Math.random() < 0.3;                    // the low hoop: sometimes he takes it right to the rim
+      if (B.dunkPlan){ B.spot = ICE_HOOPS[0].x; B.thinkT = 0.3; return mv; }
       // try spots, closest first, until he finds one he can make the shot from
       var hh = ICE_HOOPS[B.hoop];
       for (var tries = 0; tries < 24 && B.spot == null; tries++){
@@ -2780,6 +2771,7 @@ function IceGame(){
       mv = (B.spot < h.x ? -1 : 1) * 0.55;
     } else if (Math.abs(h.vx) < 6){
       B.thinkT -= dt;
+      if (B.thinkT <= 0 && B.dunkPlan){ B.dunkPlan = false; B.spot = null; B.dunk = { t: 0, x0: h.x, slam: false }; tone(160, 0.3, 'sawtooth', 0.04, 200); return 0; }
       if (B.thinkT <= 0){
         var g = iceGeo(B.hoop, G.t);
         h.face = g.cx > h.x ? 1 : -1;
@@ -2789,6 +2781,26 @@ function IceGame(){
       }
     }
     return mv;
+  }
+  // the bear's dunk: up to the low hoop, slam it through, and back down to the ice
+  function stepBearDunk(dt){
+    var D = B.dunk, h = B.h, g = iceGeo(0, G.t), cx = (g.rl + g.rr) / 2, k;
+    D.t += dt;
+    k = Math.min(1, D.t / 0.75);
+    h.x = D.x0 + (cx - h.face * 3 - D.x0) * Math.min(1, k * 2);
+    h.y = FLOOR - Math.sin(Math.PI * k) * (FLOOR - g.y - B.top + 6);
+    h.ground = null; h.vx = 0; h.vy = 0;
+    if (!D.slam && k >= 0.5){
+      D.slam = true;
+      var b = B.ball;
+      B.has = false; B.noBallT = 0;
+      b.free = true; b.live = false; b.shot = false; b.x = cx; b.y = g.y + 2; b.vx = 0; b.vy = 70; b.noPick = 0.6;
+      made(b, g);
+      addCheer(G.pops, W / 2, 34, 'BEAR DUNK!!');
+      G.shake = 0.5;
+      tone(80, 0.3, 'sawtooth', 0.06, -30); hiss(0.2, 0.06, 900);
+    }
+    if (k >= 1){ h.y = FLOOR; h.ground = 'floor'; B.dunk = null; burst(G.parts, h.x, FLOOR, 10, ['#fcfcfc', '#a8daf4'], 40, 40, 0.5); }
   }
   /* ---------- the snowman: glides around and decides when to guard you hardest ---------- */
   function stepSnowman(dt){
@@ -2961,16 +2973,17 @@ function IceGame(){
         if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
       }
     }
-    stepHero(G, B.h, dt, bearThink(dt));
+    if (B.dunk) stepBearDunk(dt); else stepHero(G, B.h, dt, bearThink(dt));
     if (me.has) holdBall(me, dt, !!G.meter || G.hang()); else looseBall(me, dt);
-    B.up = !!B.meter || !B.h.ground || (B.has && B.spot != null && Math.abs(B.h.x - B.spot) <= 4 && Math.abs(B.h.vx) < 6);
     if (B.has){
-      // up on his back legs he holds it high; on all fours he noses it along the ice
       var bb = B.ball, bf = B.h.face;
-      B.h.dp += dt * (B.h.vx ? 8 : 5);
-      if (B.meter){ bb.x = B.h.x + bf * 4; bb.y = B.h.y - B.top; }
-      else if (B.up){ bb.x = B.h.x + bf * 7; bb.y = B.h.y - 12; }
-      else { bb.x = B.h.x + bf * 16; bb.y = B.h.y - BR - Math.abs(Math.sin(B.h.dp)) * 4; bb.rot += dt * bf * 6; }
+      if (B.meter || B.dunk){ bb.x = B.h.x + bf * 3; bb.y = B.h.y - B.top; }
+      else {
+        var bdp = Math.floor(B.h.dp / Math.PI);
+        B.h.dp += dt * (B.h.vx ? 8 : 5);
+        bb.x = B.h.x + bf * 10; bb.y = B.h.y - BR - Math.abs(Math.sin(B.h.dp)) * 10; bb.rot += dt * bf * 4;
+        if (Math.floor(B.h.dp / Math.PI) !== bdp) tone(90, 0.04, 'square', 0.015, -30);
+      }
     } else looseBall(B, dt);
     stepSnowman(dt);
     stepPenguins(dt);
@@ -2996,21 +3009,18 @@ function IceGame(){
     for (i = 0; i < 3; i++) drawIceHoop(c, gs[i], G.netH === i ? G.netT : 0);
     if (M && !M.gone) for (i = 0; i < 3; i++) drawGlassHoop(c, ICE_DUNKS[i], M.cracks[i], t, 0);
     drawSnowman(c, S, t);
-    var bh = B.h, bx = Math.round(bh.x), byy = Math.round(bh.y);
-    if (B.up){
-      var bu = bh.face > 0 ? BEAR.up.r : BEAR.up.l;
-      c.drawImage(bu, bx - 8, byy - 20);
-      if (B.meter){                                                        // arms up, ball over his head
-        c.fillStyle = '#000'; pxLine(c, bx + bh.face * 2, byy - 13, bx + bh.face * 4, byy - 23, 3);
-        c.fillStyle = '#f6f6f2'; pxLine(c, bx + bh.face * 2 + 1, byy - 12, bx + bh.face * 4 + 1, byy - 22, 1);
-      } else {
-        c.fillStyle = '#000'; c.fillRect(bx + bh.face * 3 - 1, byy - 14, 5, 4);
-        c.fillStyle = '#f6f6f2'; c.fillRect(bx + bh.face * 3, byy - 13, 3, 2);
-      }
-    } else {
-      var bw = BEAR.walk[bh.vx && Math.floor(bh.anim * 0.6) % 2 ? 1 : 0];
-      c.drawImage(bh.face > 0 ? bw.r : bw.l, bx - 14, byy - 15);
+    var bh = B.h, bx = Math.round(bh.x), byy = Math.round(bh.y), bf = bh.face;
+    var bfr = BEAR.frames[!bh.ground ? 2 : (Math.abs(bh.vx) > 3 && Math.floor(bh.anim * 0.7) % 2 ? 1 : 0)];
+    var armsUp = !!B.meter || !!B.dunk;
+    // the arm away from us goes behind him
+    function bearArm(sd, up){
+      var sx = bx + sd * 5, sy = byy - 15, ex = up ? bx + sd * 3 + bf * 2 : bx + sd * 7 + (sd === bf && B.has ? 1 : 0), ey = up ? byy - 27 : byy - 8;
+      c.fillStyle = '#000'; pxLine(c, sx - 1, sy - 1, ex - 1, ey - 1, 4);
+      c.fillStyle = '#f6f6f2'; pxLine(c, sx, sy, ex, ey, 2);
     }
+    bearArm(-bf, armsUp);
+    c.drawImage(bf > 0 ? bfr.r : bfr.l, bx - 9, byy - 23);
+    bearArm(bf, armsUp);
     for (i = 0; i < G.pengs.length; i++){
       var pg = G.pengs[i], spr;
       if (pg.st === 'slide' || pg.st === 'getup'){ spr = PENGUIN_SPR.slide; c.drawImage(pg.face > 0 ? spr.r : spr.l, Math.round(pg.x) - 5, FLOOR - 4); }
@@ -3021,14 +3031,14 @@ function IceGame(){
     }
     drawHero(c, G.look, p, (me.has && (!!G.meter || !p.ground)) || G.hang());
     if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
-    if (B.meter) drawMeter(c, bh.x - bh.face * 6, bh.y - 6, B.meter.p);
+    if (B.meter) drawMeter(c, bh.x - bh.face * 9, bh.y - 4, B.meter.p);
     for (i = 0; i < balls.length; i++) if (balls[i].x > -10) drawBall(c, balls[i].x, balls[i].y, balls[i].rot, balls[i].k);
     for (i = 0; i < G.mballs.length; i++) if (G.mballs[i].delay <= 0) drawBall(c, G.mballs[i].x, G.mballs[i].y, t * 12, G.mballs[i].k);
     drawParts(c, G.parts);
     for (i = 0; i < 3; i++) vText(v, gs[i].pts + ' PTS', gs[i].cx, gs[i].y + 19, '#fcfcfc', nameSize(v));
     c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(W / 2 - 46, ICE_CEIL + 13, 92, 12);
     vText(v, 'YOU ' + G.me + '  -  ' + G.them + ' BEAR', W / 2, ICE_CEIL + 19, '#fcfcfc', nameSize(v));
-    vText(v, 'POLAR BEAR', bh.x + (B.up ? 0 : bh.face * 2), Math.min(H - 5, bh.y + 6), '#c8e0ff', Math.round(nameSize(v) * 0.8));
+    vText(v, 'POLAR BEAR', bh.x, Math.min(H - 5, bh.y + 6), '#c8e0ff', Math.round(nameSize(v) * 0.8));
     drawPops(v, G.pops);
   };
   G.press = function(k){
