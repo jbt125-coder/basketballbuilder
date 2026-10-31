@@ -22,8 +22,8 @@ button { font-family: inherit; }
 .logo { font-weight: 400; text-align: center; color: #f8b800; font-size: clamp(24px, 6vw, 52px); line-height: 1.3; margin: 12px 0 8px;
   text-shadow: 3px 3px 0 #d82800, 6px 6px 0 #000; }
 .sub { color: #58d8c0; font-size: 10px; margin: 4px 0 22px; text-align: center; line-height: 1.6; }
-.boards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1060px; }
-.board { flex: 1 1 190px; max-width: 250px; background: #26185a; border: 3px solid #000; box-shadow: inset 0 0 0 2px #3d2a80; border-radius: 12px;
+.boards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 900px; }
+.board { flex: 0 1 200px; max-width: 250px; background: #26185a; border: 3px solid #000; box-shadow: inset 0 0 0 2px #3d2a80; border-radius: 12px;
   padding: 10px; cursor: pointer; text-align: center; color: inherit; }
 .board.sel { box-shadow: inset 0 0 0 2px #3d2a80, 0 0 0 4px #f8d800; }
 .board canvas { width: 100%; aspect-ratio: 16 / 9; image-rendering: pixelated; display: block; border: 3px solid #000; border-radius: 6px; background: #000; }
@@ -152,6 +152,7 @@ body.touch:not(.land) #pad { flex: 1; }
    Board 4: in the clouds, wearing the Air Jordann's
    Board 5: frozen hoops (hanging hoops, a polar bear, a snowman and penguins)
    Board 6: the rematch (2 on 2 full court with a zooming camera)
+   Board 7: cyber court (BOLT the robot, drone birds, holo-hoops, overclock)
 ============================================================ */
 
 /* ============================================================
@@ -3735,7 +3736,13 @@ function JamGame(){
     run([{ wait: 1.5 }].concat(win ? [
       say('FROSTY', 'NOOO! FINE... YOU TWO ARE GOOD.'),
       say('SNOWMAN', "I'M MELTING... FROM EMBARRASSMENT."),
-      say('DRE', "THAT'S MY TEAMMATE!")] : [
+      say('DRE', "THAT'S MY TEAMMATE!"),
+      { fn: function(){ G.darkTo = 0.45; kingTrumpets(); king.x = G.cam.x - W / 2 / G.cam.z - 20; king.walkTo = clamp(me.x - 40, 30, JAM_L - 30); king.z = clamp(me.z + 20, 30, JAM_ZR - 30); } }, { wait: 2.2 },
+      { fn: function(){ king.face = me.x > king.x ? 1 : -1; me.face = -king.face; } },
+      say('KING HOOPER', 'NOT BAD... NOT BAD AT ALL.'),
+      say('KING HOOPER', 'BUT YOU HAVE MUCH TO LEARN.'),
+      say('KING HOOPER', 'YOUR NEXT COURT IS INSIDE THE CYBER WORLD. OFF YOU GO!!!'),
+      { fn: function(){ G.beamT = 1.8; G.beamed = true; G.nextFirst = true; tone(200, 1.6, 'sawtooth', 0.04, 1600); hiss(1.6, 0.04, 3000); } }, { wait: 2 }] : [
       say('FROSTY', 'TOLD YOU. BEAR BALL!'),
       say('DRE', "WE'LL GET 'EM NEXT TIME.")]).concat([
       { fn: function(){ G.clearText = win ? 'YOU WIN THE REMATCH!' : 'FROSTY & SNOWMAN WIN!'; G.done = true; } }]));
@@ -3780,6 +3787,7 @@ function JamGame(){
     if (king.walkTo != null){ var kd = king.walkTo - king.x; if (Math.abs(kd) < 1.5) king.walkTo = null; else { king.x += sgn(kd) * Math.min(Math.abs(kd), 60 * dt); king.face = sgn(kd); king.anim += dt * 10; } }
     G.dark += ((G.darkTo || 0) - G.dark) * Math.min(1, dt * 2);
     if (G.rewindT > 0) stepRewind(dt);
+    if (G.beamT > 0) G.beamT -= dt;
     if (G.ioT > 0 && (G.ioT -= dt) <= 0 && G.phase === 'play' && !ball.holder){ bear.x = clamp(ball.x, 8, JAM_L - 8); bear.z = clamp(ball.z, 8, JAM_ZR - 8); give(bear); addPop(G.pops, W / 2, 40, 'REBOUND FROSTY!', JAM_TEAM_COL[1]); }
     if (G.phase === 'play'){
       // you
@@ -3851,6 +3859,13 @@ function JamGame(){
     order.forEach(function(a){
       if (!ballDrawn && ball.holder == null && ballY < JAM_TOP + a.z / JAM_ZK){ drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, t * 8, 0); ballDrawn = true; }
       var x = Math.round(a.x), y = Math.round(JAM_TOP + a.z / JAM_ZK - a.h), moving = Math.abs(a.vx) + Math.abs(a.vz) > 5;
+      if (a === me && G.beamed && G.beamT <= 0) return;                 // beamed away
+      if (a === me && G.beamT > 0){
+        // beamed into the cyber world: a column of light, and you fade into bits
+        c.fillStyle = 'rgba(48,224,248,' + (0.35 + 0.2 * Math.sin(t * 30)).toFixed(2) + ')'; c.fillRect(x - 6, 0, 13, y + 2);
+        for (var bk = 0; bk < 6; bk++){ c.fillStyle = bk % 2 ? '#58f858' : '#fcfcfc'; c.fillRect(Math.round(x + rand(-6, 6)), Math.round(y - rand(0, 40)), 1, 2); }
+        if (G.beamT < 1.1) return;
+      }
       var up = !!a.meter || (a === me && !!G.meter) || a.h > 0;
       if (a.kind === 'bear') drawBearAt(c, x, y, a.face, a.h > 0 ? 2 : (moving && Math.floor(a.anim * 0.7) % 2 ? 1 : 0), up, ball.holder === a);
       else if (a.kind === 'snow'){ c.save(); c.translate(x, y); c.scale(0.7, 0.7); c.translate(0, -FLOOR); drawSnowman(c, a.snow, t); c.restore(); }
@@ -3870,7 +3885,7 @@ function JamGame(){
     drawParts(c, G.parts);
     // name tags and the "you" arrow
     order.forEach(function(a){
-      if (a.x < -20) return;
+      if (a.x < -20 || (a === me && G.beamed && G.beamT < 1.1)) return;
       var top = JAM_TOP + a.z / JAM_ZK - a.h - (a.kind === 'bear' ? 30 : (a.kind === 'snow' ? 33 : 18)), p0 = scr(a.x, top);
       if (a === me){ c.fillStyle = '#f8d800'; var ax = Math.round(a.x), ay = Math.round(top - 2); c.fillRect(ax - 2, ay - 3, 5, 1); c.fillRect(ax - 1, ay - 2, 3, 1); c.fillRect(ax, ay - 1, 1, 1); }
       vText(v, a === me ? 'YOU' : a.kind === 'dre' ? 'DRE' : a.kind === 'bear' ? 'FROSTY' : 'SNOWMAN', p0.x, p0.y - 3, JAM_TEAM_COL[a.team], Math.max(7, Math.round(nameSize(v) * 0.7 * Math.min(1, cam.z + 0.2))));
@@ -3899,6 +3914,608 @@ function JamGame(){
 }
 
 /* ============================================================
+   BOARD 7: CYBER COURT — a neon city inside the machine. Beat BOLT the robot baller, dodge the
+   zapper drone birds, catch the warping holo-hoops, and OVERCLOCK for the upload dunk.
+============================================================ */
+var CY_SECS = 120, CY_OC_MAX = 5, CY_OC_SECS = 15, CY_SLOW = 0.4;
+var CY_MAIN = { i: 0, kind: 'main', side: 1, bx: W - 16, y: 72, pts: 3 };
+CY_MAIN.rl = CY_MAIN.bx - 1 - RIM_W; CY_MAIN.rr = CY_MAIN.rl + RIM_W; CY_MAIN.cx = CY_MAIN.rl + RIM_W / 2;
+// where the holo-hoops can warp to
+var CY_SPOTS = [[46, 54], [92, 36], [126, 66], [150, 32], [180, 56], [66, 82], [204, 34], [112, 88]];
+var CY_UPLOAD = [5, 5, 5, 15];
+TALK_COLS.BOLT = '#58f8f8';
+
+/* BOLT: chrome head with a visor, an antenna light, a chest panel, and one wheel */
+var BOLT_SPR = (function(){
+  var pal = { k: '#101018', m: '#b8c0d0', M: '#8890a8', c: '#103040', C: '#58f8f8', P: '#202838', y: '#f8d800', g: '#58f858', r: '#f83838', W: '#606878', w: '#c8d0e0' };
+  var TOP = [
+    '......r......', '......k......', '...kkkkkkk...', '..kmmmmmmmk..', '..kmcccccmk..', '..kmcCcCcmk..', '..kmcccccmk..',
+    '..kMmmmmmMk..', '...kkkkkkk...', '....kmmmk....', '..kkkkkkkkk..', '.kmmmmmmmmmk.', '.kmmPPPPPmmk.', '.kmmPyPgPmmk.',
+    '.kmmPPPPPmmk.', '.kMmmmmmmmMk.', '..kMMMMMMMk..', '...kkkkkkk...', '.....kmk.....'];
+  var WHEEL = [['...kkkkkkk...', '..kWwWkWwWk..', '..kWkWwWkWk..', '..kWwWkWwWk..', '...kkkkkkk...'],
+               ['...kkkkkkk...', '..kWkWwWkWk..', '..kWwWkWwWk..', '..kWkWwWkWk..', '...kkkkkkk...']];
+  return WHEEL.map(function(wh){ return outlined(makeSpriteP(TOP.concat(wh), pal)); });
+})();
+/* drone birds: metal birds with a rotor on top; green-eyed scouts and red-eyed zappers */
+var DRONE_SPR = (function(){
+  var UP = ['....WW....HH..', '....WWW..HHEKK', '..BBBWWBBHHH..', '.BBBBBBBBBB...', 'TTBBBBBBBB....', 'T...BBBBB.....'];
+  var DN = ['..........HH..', '.........HHEKK', '..BBBBBBBHHH..', '.BBBBBBBBBB...', 'TTBBWWWWBB....', 'T...WWWWB.....', '.....WW.......'];
+  function kind(eye){
+    var pal = { B: '#8890a0', W: '#40c8f8', H: '#a8b0c0', K: '#f8d800', T: '#606878', E: eye };
+    return [UP, DN].map(function(rows){ var a = makeSpriteP(rows, pal); return { r: a, l: flipC(a) }; });
+  }
+  return { scout: kind('#58f858'), zap: kind('#f83838') };
+})();
+var CY_BG = null;
+function cyberBg(){
+  if (CY_BG) return CY_BG;
+  var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var c = cv.getContext('2d'), i, x, y, seed = 101;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  // a purple night over the machine city
+  var sky = ['#08031a', '#0c0624', '#120830', '#180a3c', '#200c48', '#2a1054', '#341460', '#3e186a'], bh = 110 / sky.length;
+  for (i = 0; i < sky.length; i++){ c.fillStyle = sky[i]; c.fillRect(0, Math.floor(i * bh), W, Math.ceil(bh) + 1); }
+  c.fillStyle = '#fcfcfc';
+  for (i = 0; i < 40; i++){ c.globalAlpha = 0.2 + r() * 0.6; c.fillRect(Math.floor(r() * W), Math.floor(r() * 50), 1, 1); }
+  c.globalAlpha = 1;
+  // the digital sun, striped across its lower half
+  var sun = ['#f8e048', '#f8c048', '#f8a050', '#f88060', '#f86078', '#e84890', '#c838a8'];
+  for (y = -30; y <= 30; y++){
+    var w = Math.floor(Math.sqrt(900 - y * y));
+    if (y > 2 && (y % 6 === 0 || y % 6 === 1)) continue;
+    c.fillStyle = sun[Math.min(sun.length - 1, Math.floor((y + 30) / 9))]; c.fillRect(128 - w, 72 + y, w * 2 + 1, 1);
+  }
+  // the skyline, with neon windows and blinking antennas
+  x = -4;
+  while (x < W){
+    var bw = 14 + Math.floor(r() * 22), top = 46 + Math.floor(r() * 44);
+    if (x > 92 && x < 150) top = Math.max(top, 74);
+    c.fillStyle = '#0c0a20'; c.fillRect(x, top, bw, 110 - top);
+    c.fillStyle = r() < 0.5 ? '#30e0f8' : '#f838c8'; c.fillRect(x, top, bw, 1);
+    for (y = top + 3; y < 106; y += 4) for (var wx = x + 2; wx < x + bw - 2; wx += 3){ if (r() < 0.3){ c.fillStyle = r() < 0.5 ? '#30a8d0' : '#a83098'; c.fillRect(wx, y, 1, 2); } }
+    if (r() < 0.4){ c.fillStyle = '#0c0a20'; c.fillRect(x + Math.floor(bw / 2), top - 6, 1, 6); c.fillStyle = '#f83838'; c.fillRect(x + Math.floor(bw / 2), top - 7, 1, 1); }
+    x += bw + Math.floor(r() * 4);
+  }
+  // the neon grid floor, running off to a vanishing point
+  c.fillStyle = '#f838c8'; c.fillRect(0, 110, W, 1);
+  c.fillStyle = '#0a0618'; c.fillRect(0, 111, W, FLOOR - 111);
+  c.fillStyle = 'rgba(48,224,248,.55)';
+  for (var k = 1; k < 9; k++){ y = Math.round(111 + k * k * 0.3); if (y < FLOOR) c.fillRect(0, y, W, 1); }
+  for (x = -240; x <= W + 240; x += 24){
+    var x0 = 128 + (x - 128) * 0.18;
+    for (y = 111; y < FLOOR; y++){ var u = (y - 111) / (FLOOR - 111); c.fillRect(Math.round(x0 + (x - x0) * u), y, 1, 1); }
+  }
+  // the edge of the court and a circuit board below it
+  c.fillStyle = '#30e0f8'; c.fillRect(0, FLOOR, W, 1);
+  c.fillStyle = '#081420'; c.fillRect(0, FLOOR + 1, W, H - FLOOR - 1);
+  c.fillStyle = '#18a878';
+  for (i = 0; i < 18; i++){ var tx = Math.floor(r() * W), ty = FLOOR + 3 + Math.floor(r() * 8), tl = 6 + Math.floor(r() * 20); c.fillRect(tx, ty, tl, 1); c.fillRect(tx + tl, ty, 1, 3); c.fillStyle = '#f8d800'; c.fillRect(tx + tl - 1, ty + 3, 3, 1); c.fillStyle = '#18a878'; }
+  CY_BG = cv;
+  return cv;
+}
+function drawMainframe(c, g, t, netT, portal){
+  var k, x0 = g.bx + 2;
+  // the server tower, blinking away
+  c.fillStyle = '#000'; c.fillRect(x0, 34, W - x0, FLOOR - 34);
+  c.fillStyle = '#141a2a'; c.fillRect(x0 + 1, 35, W - x0 - 1, FLOOR - 35);
+  for (k = 0; k < 14; k++){ var ly = 40 + k * 6; c.fillStyle = '#0a0e18'; c.fillRect(x0 + 2, ly, W - x0 - 3, 4); c.fillStyle = (Math.floor(t * 4 + k * 1.7) % 3) ? '#58f858' : '#f8d800'; c.fillRect(x0 + 3 + (k % 3) * 3, ly + 1, 1, 1); }
+  // the backboard is a screen
+  c.fillStyle = '#000'; c.fillRect(g.bx - 1, g.y - 23, 5, 31);
+  c.fillStyle = portal ? MAGIC_COLS[Math.floor(t * 10) % MAGIC_COLS.length] : '#f838c8'; c.fillRect(g.bx, g.y - 22, 3, 29);
+  c.fillStyle = '#fcfcfc'; c.fillRect(g.bx + 1, g.y - 9, 1, 7);
+  if (portal){
+    // the upload portal swirls around the rim
+    for (k = 0; k < 10; k++){ var a = t * 4 + k * 0.63; c.fillStyle = MAGIC_COLS[k % MAGIC_COLS.length]; c.fillRect(Math.round(g.cx + Math.cos(a) * 16), Math.round(g.y - 6 + Math.sin(a) * 12), 1, 1); }
+  }
+  drawNet(c, g.rl, g.rr, g.y, netT, 'rgba(248,120,248,.85)');
+  c.fillStyle = '#000'; c.fillRect(g.rl - 1, g.y - 1, RIM_W + 3, 4);
+  c.fillStyle = '#f838f8'; c.fillRect(g.rl, g.y, RIM_W + 1, 2);
+  c.fillStyle = 'rgba(248,56,248,.25)'; c.fillRect(g.rl - 2, g.y - 2, RIM_W + 5, 6);
+}
+function drawHoloHoop(c, g, t, netT){
+  if (g.warp > 0){
+    // glitching out: scattered blocks of light
+    for (var k = 0; k < 8; k++){ c.fillStyle = k % 2 ? 'rgba(48,224,248,.7)' : 'rgba(248,56,200,.7)'; c.fillRect(Math.round(g.cx + rand(-14, 14)), Math.round(g.y + rand(-8, 10)), Math.round(rand(2, 7)), 1); }
+    return;
+  }
+  var flick = Math.random() < 0.06 ? 0.4 : 1;
+  c.globalAlpha = flick;
+  // a beam of light holding it up from an emitter on the floor
+  c.fillStyle = 'rgba(48,224,248,.12)'; c.fillRect(Math.round(g.cx) - 1, g.y + 12, 3, FLOOR - g.y - 12);
+  c.fillStyle = '#30e0f8'; c.fillRect(Math.round(g.cx) - 3, FLOOR - 1, 7, 1);
+  drawNet(c, g.rl, g.rr, g.y, netT, 'rgba(48,224,248,.75)');
+  c.fillStyle = 'rgba(48,224,248,.25)'; c.fillRect(g.rl - 2, g.y - 2, RIM_W + 5, 6);
+  c.fillStyle = '#30e0f8'; c.fillRect(g.rl, g.y, RIM_W + 1, 2);
+  c.fillStyle = '#e8fcff'; c.fillRect(g.rl + ((Math.floor(t * 20)) % RIM_W), g.y, 2, 1);
+  c.globalAlpha = 1;
+}
+function drawHoverPad(c, q, t){
+  var w = q.x2 - q.x1, x = Math.round(q.x1), y = Math.round(q.y);
+  c.fillStyle = '#000'; c.fillRect(x - 1, y - 1, w + 2, 5);
+  c.fillStyle = '#1a2038'; c.fillRect(x, y, w, 3);
+  c.fillStyle = '#30e0f8'; c.fillRect(x, y, w, 1);
+  c.fillStyle = '#f838c8'; c.fillRect(x + 2, y + 3, w - 4, 1);
+  // thrusters underneath
+  for (var k = x + 4; k < x + w - 3; k += 9){ c.fillStyle = Math.random() < 0.5 ? '#58f8f8' : '#c8fcff'; c.fillRect(k, y + 4, 2, 1 + Math.floor(Math.random() * 3)); }
+}
+
+function CyberGame(){
+  var G = newWorld(), p = newHero(50);
+  G.hero = p; G.look = LOOK; G.left = CY_SECS; G.phase = 'story'; G.me = 0; G.them = 0; G.streak = 0; G.oc = 0; G.over = null;
+  G.drones = []; G.droneT = 3; G.zaps = []; G.glitch = 0; G.rain = [];
+  for (var ri = 0; ri < 14; ri++) G.rain.push({ x: Math.floor(rand(0, W)), y: rand(0, 110), sp: rand(20, 50) });
+  G.queue = []; G.step = null; G.ui = null; G.uiRev = 0; G.inStep = false;
+  // two hover pads: one glides side to side, one rides up and down
+  var PADS = [{ x1: 40, x2: 76, y: 100, id: 'padA', ax: 40, rng: 50, sp: 0.6 }, { x1: 168, x2: 200, y: 92, id: 'padB', ay: 92, rng: 22, sp: 0.8 }];
+  G.plats = [FLOOR_PLAT].concat(PADS);
+  var holo = [mkHolo(1, 1), mkHolo(2, 3)];
+  function mkHolo(i, s){ var sp = CY_SPOTS[s]; return { i: i, kind: 'holo', side: 0, cx: sp[0], y: sp[1], base: sp[1], rl: Math.round(sp[0] - RIM_W / 2), rr: Math.round(sp[0] - RIM_W / 2) + RIM_W, pts: 2, spot: s, warp: 0 }; }
+  function geos(){ return [CY_MAIN, holo[0], holo[1]]; }
+  function hoopBy(i){ return i === 0 ? CY_MAIN : holo[i - 1]; }
+  G.hang = function(){ return !!(G.over && G.over.upload); };
+
+  function mkBall(k, own){ return { k: k, own: own, x: -30, y: FLOOR - BR, vx: 0, vy: 0, rot: 0, free: false, live: false, noPick: 0, rest: 0 }; }
+  var me = { h: p, ball: mkBall(0, 'me'), has: true, noBallT: 0, top: 17 };
+  var B = { h: newHero(200), ball: mkBall(2, 'bot'), has: true, noBallT: 0, top: 24, meter: null, spot: null, hoop: 0, thinkT: 0, target: 0, shots: 0, heat: 0, stun: 0 };
+  B.h.face = -1;
+  var balls = [me.ball, B.ball];
+  function gain(n){ G.score += n; G.me += n; }
+
+  /* ---------- the story ---------- */
+  function say(name, text){ return { say: name, text: text }; }
+  function run(steps){ G.queue = steps.concat(G.queue); if (!G.step && !G.inStep) nextStep(); }
+  function nextStep(){
+    G.step = null; G.inStep = true;
+    while (G.queue.length && !G.step){
+      var s = G.queue.shift();
+      if (s.fn){ s.fn(); continue; }
+      G.step = s;
+      G.ui = s.say ? { name: s.say, text: s.text, shown: 0, col: TALK_COLS[s.say], face: TALK_FACES[s.say] } : null;
+      if (s.wait) s.t = s.wait;
+    }
+    if (!G.step) G.ui = null;
+    G.uiRev++; G.inStep = false;
+  }
+  G.choose = function(){};
+  G.key = function(k){
+    var s = G.step;
+    if (!s) return G.phase !== 'play';
+    if (s.say && (k === 'a' || k === 'b' || k === 'start')){ if (G.ui.shown < s.text.length) G.ui.shown = s.text.length; else { sfx.tick(); nextStep(); } }
+    return true;
+  };
+  function beep(n){ for (var i = 0; i < n; i++) tone(600 + Math.random() * 900, 0.05, 'square', 0.03, 0, i * 0.07); }
+  run([{ wait: 0.4 },
+    { fn: function(){ G.glitch = 0.8; addPop(G.pops, W / 2, 40, 'BOOTING CYBER COURT...', '#58f8f8', true); beep(6); } }, { wait: 1.6 },
+    { fn: function(){ beep(3); } },
+    say('BOLT', 'GREETINGS, HUMAN. I AM BOLT.'),
+    say('BOLT', 'I HAVE CALCULATED A 99.7% CHANCE OF YOUR DEFEAT.'),
+    say('YOU', 'CALCULATE THIS!'),
+    say('BOLT', 'INITIATING GAME. TWO MINUTES. MOST POINTS WINS.'),
+    { fn: function(){ G.phase = 'play'; addCheer(G.pops, W / 2, 40, 'GAME ON!'); addPop(G.pops, W / 2, 56, 'SHOOT DOWN DRONES. CHARGE THE OVERCLOCK.', '#58f8f8'); sfx.bonus(); } }]);
+
+  /* ---------- balls ---------- */
+  function grab(O){ O.has = true; O.ball.free = false; O.ball.live = false; O.noBallT = 0; if (O === me) sfx.dribble(); }
+  function facingHoop(){
+    var gs = geos(), best = null, bd = 1e9, i;
+    // the nearest hoop you're facing that you aren't standing right under
+    for (i = 0; i < gs.length; i++){ if (gs[i].warp > 0) continue; var dx = (gs[i].cx - p.x) * p.face; if (dx > 30 && dx < bd){ bd = dx; best = gs[i]; } }
+    if (!best) for (i = 0; i < gs.length; i++){ if (gs[i].warp > 0) continue; var d3 = Math.abs(gs[i].cx - p.x); if (d3 > 30 && d3 < bd){ bd = d3; best = gs[i]; } }
+    if (!best) for (i = 0; i < gs.length; i++){ if (gs[i].warp > 0) continue; var d2 = Math.abs(gs[i].cx - p.x); if (d2 < bd){ bd = d2; best = gs[i]; } }
+    return best || CY_MAIN;
+  }
+  function shootBall(O, pw){
+    var h = O.h, b = O.ball, lockG = null;
+    if (O === me && G.over){ lockG = facingHoop(); h.face = lockG.cx > h.x ? 1 : -1; }
+    var v = 165 + pw * 105;
+    b.free = true; b.live = true; b.scored = false; b.noPick = 0.6; b.rest = 0; b.ret = false; b.shot = true; b.jump = !h.ground; b.lock = lockG ? lockG.i : -1;
+    b.x = h.x + h.face * 2; b.y = h.y - O.top;
+    b.vx = h.face * v * Math.cos(ANG); b.vy = -v * Math.sin(ANG);
+    if (lockG){
+      // overclocked: an exact arc that drops through the middle of the rim you're facing
+      var ty = lockG.y - 1, rise = b.y - ty, T = Math.max(0.6 + Math.abs(lockG.cx - b.x) / 400, Math.sqrt(2 * Math.max(0, rise) / BALL_G) * 1.25 + 0.15);
+      b.vx = ((lockG.rl + lockG.rr) / 2 - b.x) / T; b.vy = -rise / T - 0.5 * BALL_G * T;
+    }
+    O.has = false; O.noBallT = 0;
+    if (O === me) G.meter = null; else { O.meter = null; O.shots++; }
+    if (O === me) sfx.dribble(); else beep(1);
+  }
+  function holdBall(O, dt, up){
+    var h = O.h, b = O.ball, before = Math.floor(h.dp / Math.PI);
+    h.dp += dt * (h.vx ? 9 : 6);
+    if (up || !h.ground){ b.x = h.x + h.face * 3; b.y = h.y - O.top; return; }
+    if (O === me && Math.floor(h.dp / Math.PI) !== before) sfx.dribble();
+    b.x = h.x + h.face * (O === me ? 6 : 9); b.y = h.y - BR - Math.abs(Math.sin(h.dp)) * 8;
+    b.rot += dt * h.face * 4;
+  }
+  function looseBall(O, dt){
+    var h = O.h, b = O.ball;
+    O.noBallT += dt;
+    if (b.live) return;
+    if (h.ground && b.free && b.noPick <= 0 && Math.abs(b.vy) < 1 && Math.abs(b.x - h.x) < 9 && Math.abs(b.y + BR - h.y) < 4){ grab(O); return; }
+    if (O.noBallT > (O === me ? 2.5 : 1.5)){
+      // the ball de-rezzes and reloads in your hands
+      burst(G.parts, b.x, b.y, 8, ['#30e0f8', '#f838c8'], 40, 0, 0.4);
+      grab(O);
+    }
+  }
+  function charge(){
+    if (G.over) return;
+    G.oc++;
+    if (G.oc >= CY_OC_MAX) startOverclock();
+    else addPop(G.pops, W / 2, 26, 'OVERCLOCK ' + G.oc + '/' + CY_OC_MAX, '#58f8f8');
+  }
+  function warp(g){
+    g.warp = 0.6;
+    var used = [holo[0].spot, holo[1].spot], s;
+    do { s = Math.floor(Math.random() * CY_SPOTS.length); } while (used.indexOf(s) >= 0);
+    g.next = s;
+    addPop(G.pops, g.cx, g.y - 10, 'REROUTING...', '#58f8f8');
+    tone(1400, 0.2, 'square', 0.03, -1100);
+  }
+  function made(b, g){
+    var cx = (g.rl + g.rr) / 2;
+    b.scored = true; b.shot = false; b.ret = true; b.vx *= 0.3; g.netT = 0.5;
+    burst(G.parts, cx, g.y + 4, 14, ['#30e0f8', '#f838c8', '#fcfcfc'], 60, 40, 0.8);
+    sfx.swish();
+    if (b.own === 'me'){
+      var pts = (g.pts + (b.jump ? 1 : 0)) * (G.over ? 2 : 1);
+      gain(pts); G.streak++;
+      addCheer(G.pops, W / 2, 34);
+      addPop(G.pops, cx, g.y + 18, '+' + pts + (G.over ? ' x2' : '') + (b.jump ? ' JUMP SHOT' : ''), '#fcfc78');
+      charge();
+    } else {
+      G.them += g.pts;
+      addPop(G.pops, cx, g.y + 18, 'BOLT +' + g.pts, '#58f8f8');
+    }
+    if (g.kind === 'holo') warp(g);
+  }
+  function stepBall(b, h, gs){
+    var py = b.y, i;
+    b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR;
+    if (b.lock >= 0 && b.live && !b.scored && b.vy > 0){
+      var lg = hoopBy(b.lock);
+      if (b.y > lg.y - 30 && b.y < lg.y) b.x += ((lg.rl + lg.rr) / 2 - b.x) * Math.min(1, h * 10);
+      if (Math.random() < 0.6) G.parts.push({ x: b.x, y: b.y, vx: 0, vy: 0, g: 0, life: 0.3, c: '#30e0f8' });
+    }
+    for (i = 0; i < gs.length; i++){
+      var g = gs[i];
+      if (g.warp > 0) continue;
+      if (b.live && !b.scored && py < g.y && b.y >= g.y && b.x > g.rl && b.x < g.rr) made(b, g);
+      [g.rl, g.rr].forEach(function(px){
+        var dx = b.x - px, dy = b.y - g.y, d = hyp(dx, dy);
+        if (d < BR + 1 && d > 0){
+          var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
+          b.x = px + nx * (BR + 1); b.y = g.y + ny * (BR + 1);
+          if (vn < 0){ b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; } }
+        }
+      });
+      if (g.side > 0 && b.y > g.y - 22 - BR && b.y < g.y + 6 + BR && b.x + BR > g.bx && b.x < g.bx + 2 && b.vx > 0){ b.x = g.bx - BR; b.vx = -b.vx * 0.55; sfx.board(); }
+    }
+    // knock a drone bird out of the sky
+    if (b.live){
+      for (i = 0; i < G.drones.length; i++){
+        var dr = G.drones[i];
+        if (dr.st !== 'fall' && Math.abs(b.x - dr.x) < 8 && Math.abs(b.y - dr.y - 3) < 6){ downDrone(dr, b); b.vx *= -0.4; b.vy = -Math.abs(b.vy) * 0.4; break; }
+      }
+    }
+    if (b.y < BR){ b.y = BR; b.vy = Math.abs(b.vy) * 0.5; }
+    if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
+    if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
+    if (b.vy >= 0){
+      for (i = 0; i < G.plats.length; i++){
+        var q = G.plats[i];
+        if (py + BR <= q.y + 0.5 && b.y + BR >= q.y && b.x > q.x1 && b.x < q.x2){
+          b.y = q.y - BR; b.live = false;
+          if (b.shot){ b.shot = false; if (b.own === 'me'){ if (G.streak >= 3) addPop(G.pops, p.x, p.y - 24, 'STREAK OVER', '#f86060'); G.streak = 0; } }
+          if (b.ret){ var oh = b.own === 'me' ? p : B.h; b.ret = false; b.vx = (oh.x < b.x ? -1 : 1) * rand(40, 60); }
+          if (b.vy > 25){ if (b.own === 'me') sfx.bounce(b.vy / 3000); b.vy = -b.vy * 0.55; b.vx *= 0.85; }
+          else { b.vy = 0; b.vx *= Math.pow(0.35, h); if (Math.abs(b.vx) < 2) b.vx = 0; }
+          break;
+        }
+      }
+    }
+    b.rest = b.vy === 0 && b.vx === 0 ? b.rest + h : 0;
+  }
+
+  /* ---------- drone birds ---------- */
+  function spawnDrone(){
+    var dir = Math.random() < 0.5 ? 1 : -1;
+    G.drones.push({ x: dir > 0 ? -14 : W + 14, y0: rand(14, 44), y: 0, dir: dir, sp: rand(32, 46), f: 0, t: rand(0, 6), kind: Math.random() < 0.45 ? 'zap' : 'scout', st: 'fly', cool: rand(1, 3), aimT: 0 });
+    tone(900, 0.08, 'square', 0.02, 300); tone(1200, 0.08, 'square', 0.02, 300, 0.1);
+  }
+  function downDrone(dr, b){
+    dr.st = 'fall'; dr.vy = -40; dr.spin = 0; dr.by = b ? b.own : '';
+    burst(G.parts, dr.x, dr.y + 3, 14, ['#f8d800', '#f87800', '#fcfcfc', '#30e0f8'], 60, 60, 0.8);
+    hiss(0.3, 0.07, 1200); tone(400, 0.3, 'square', 0.04, -300);
+    if (b && b.own === 'me'){ gain(3); addPop(G.pops, dr.x, dr.y - 8, 'DRONE DOWN! +3', '#fcfc78'); charge(); }
+    else if (b) addPop(G.pops, dr.x, dr.y - 8, 'DRONE DOWN!', '#58f8f8');
+  }
+  function zapAt(dr){
+    // the lightning comes straight down from the drone
+    G.zaps.push({ x: dr.x, y: dr.y + 6, t: 0.25 });
+    hiss(0.4, 0.08, 500); tone(1600, 0.15, 'square', 0.04, -1200);
+    if (Math.abs(p.x - dr.x) < 8 && !G.hang()){
+      hurtHero(G, p, dr.x, 'ZAPPED!'); G.glitch = 0.5; G.shake = 0.3;
+      if (me.has && p.ground === null){ /* keep it */ }
+    }
+    if (Math.abs(B.h.x - dr.x) < 9 && B.stun <= 0){ B.stun = 2; B.meter = null; addPop(G.pops, B.h.x, B.h.y - 34, 'BOLT GLITCHED!', '#58f8f8'); }
+  }
+  function stepDrones(dt){
+    var ts = G.over ? CY_SLOW : 1, i;
+    G.droneT -= dt * ts;
+    if (G.droneT <= 0 && G.drones.length < 3 && G.phase === 'play'){ spawnDrone(); G.droneT = rand(4, 7); }
+    for (i = G.drones.length - 1; i >= 0; i--){
+      var dr = G.drones[i], dd = dt * ts;
+      dr.f += dd * 14; dr.t += dd;
+      if (dr.st === 'fly'){
+        dr.x += dr.dir * dr.sp * dd; dr.y = dr.y0 + Math.sin(dr.t * 2.5) * 4;
+        if (dr.kind === 'zap' && G.phase === 'play'){
+          dr.cool -= dd;
+          if (dr.cool <= 0 && Math.abs(dr.x - p.x) < 30){ dr.st = 'aim'; dr.aimT = 1.1; tone(1000, 0.6, 'square', 0.02, 600); }
+        }
+      } else if (dr.st === 'aim'){
+        // hovers over you with a red laser sight, then fires
+        dr.x += clamp(p.x - dr.x, -40 * dd, 40 * dd); dr.y = dr.y0 + Math.sin(dr.t * 8) * 1;
+        dr.aimT -= dd;
+        if (dr.aimT <= 0){ zapAt(dr); dr.st = 'fly'; dr.cool = rand(7, 10); }
+      } else {
+        dr.vy += 260 * dd; dr.y += dr.vy * dd; dr.x += dr.dir * 20 * dd; dr.spin += dd * 12;
+        if (Math.random() < 0.4) G.parts.push({ x: dr.x, y: dr.y, vx: rand(-10, 10), vy: -20, g: 0, life: 0.4, c: pick(['#606878', '#f87800']) });
+        if (Math.abs(dr.x - B.h.x) < 10 && dr.y > B.h.y - 28 && dr.y < B.h.y){
+          B.stun = 2.2; B.meter = null;
+          if (dr.by === 'me'){ gain(3); addPop(G.pops, B.h.x, B.h.y - 34, 'SYSTEM CRASH! +3', '#fcfc78'); } else addPop(G.pops, B.h.x, B.h.y - 34, 'SYSTEM CRASH!', '#58f8f8');
+          burst(G.parts, B.h.x, B.h.y - 14, 20, ['#f8d800', '#30e0f8', '#fcfcfc'], 70, 40, 0.8); G.shake = 0.4;
+          G.drones.splice(i, 1); continue;
+        }
+        if (dr.y > FLOOR - 3){ burst(G.parts, dr.x, FLOOR - 3, 16, ['#f8d800', '#f87800', '#606878'], 60, 80, 0.7); hiss(0.2, 0.06, 900); G.drones.splice(i, 1); continue; }
+      }
+      if (dr.x < -24 || dr.x > W + 24) G.drones.splice(i, 1);
+    }
+    for (i = G.zaps.length - 1; i >= 0; i--){ G.zaps[i].t -= dt; if (G.zaps[i].t <= 0) G.zaps.splice(i, 1); }
+  }
+
+  /* ---------- BOLT: fast and accurate, but he overheats ---------- */
+  function boltThink(dt){
+    var h = B.h, mv = 0;
+    if (!B.has){
+      var b = B.ball;
+      B.spot = null;
+      if (!b.live && b.free && b.noPick <= 0 && Math.abs(b.x - h.x) > 3) mv = (b.x < h.x ? -1 : 1) * 0.9;
+    } else if (B.meter){
+      B.meter.p += dt / 0.7;
+      if (B.meter.p >= B.target){
+        shootBall(B, B.meter.p);
+        if (B.shots >= 3){ B.shots = 0; B.heat = 3.5; addPop(G.pops, h.x, h.y - 36, 'OVERHEATING!', '#f86060'); hiss(1, 0.05, 2000); }
+      }
+    } else if (B.spot == null){
+      var gs = geos(), pickI = Math.floor(Math.random() * 3), g = gs[pickI];
+      if (g.warp > 0) return 0;
+      B.hoop = pickI;
+      for (var tries = 0; tries < 24 && B.spot == null; tries++){
+        var sx = clamp(g.cx + (g.side ? -1 : (Math.random() < 0.5 ? -1 : 1)) * (36 + tries * 5 + rand(0, 8)), 12, W - 30), sf = g.cx > sx ? 1 : -1;
+        if (bestPowerAt(sx + sf * 2, FLOOR - B.top, sf, g.cx, g.y) >= 0) B.spot = sx;
+      }
+      B.thinkT = rand(0.35, 0.7);
+    } else if (Math.abs(h.x - B.spot) > 3){
+      mv = (B.spot < h.x ? -1 : 1) * 0.9;
+    } else {
+      B.thinkT -= dt;
+      if (B.thinkT <= 0){
+        var g2 = hoopBy(B.hoop);
+        if (g2.warp > 0){ B.spot = null; return 0; }
+        h.face = g2.cx > h.x ? 1 : -1;
+        var bp = bestPowerAt(h.x + h.face * 2, h.y - B.top, h.face, (g2.rl + g2.rr) / 2, g2.y);
+        if (bp < 0) B.spot = null;
+        else { B.target = clamp(bp + gauss() * 0.028, 0.02, 1); B.meter = { p: 0, dir: 1 }; }
+      }
+    }
+    return mv;
+  }
+
+  /* ---------- OVERCLOCK and the upload dunk ---------- */
+  function startOverclock(){
+    G.over = { left: CY_OC_SECS, upload: null }; G.oc = 0; G.magic = { left: 0 };
+    G.glitch = 0.6;
+    addCheer(G.pops, W / 2, 36, 'OVERCLOCK!!');
+    addPop(G.pops, W / 2, 52, 'TIME SLOWS. SHOTS LOCK ON. POINTS x2.', '#58f8f8');
+    addPop(G.pops, W / 2, 62, 'JUMP INTO THE MAINFRAME PORTAL WITH THE BALL!', '#e0b0ff');
+    fireworks(G.parts, 2);
+    var n = [262, 330, 392, 523, 659, 784, 1047]; for (var i = 0; i < n.length; i++) tone(n[i], 0.1, 'sawtooth', 0.04, 0, i * 0.06);
+  }
+  function endOverclock(text){
+    G.over = null; G.magic = null;
+    addPop(G.pops, W / 2, 50, text, '#58f8f8', true);
+  }
+  function uploadSlam(){
+    var U = G.over.upload, g = U.route[U.n], cx = (g.rl + g.rr) / 2, pts = CY_UPLOAD[U.n];
+    p.x = cx; p.y = g.y + 15; p.vx = 0; p.vy = 0; p.ground = null;
+    gain(pts); g.netT = 0.6; G.shake = U.n === 3 ? 1.2 : 0.35; G.glitch = U.n === 3 ? 1 : 0.3;
+    addPop(G.pops, cx, g.y - 18, (U.n === 3 ? 'UPLOAD COMPLETE! +' : 'SLAM! +') + pts, '#fcfc78', U.n === 3);
+    burst(G.parts, cx, g.y, 22, ['#30e0f8', '#f838c8', '#fcfcfc', '#58f858'], 80, 40, 1);
+    sfx.swish(); tone(1400, 0.06, 'square', 0.05, -900);
+    if (U.n === 3){ fireworks(G.parts, 5); sfx.fanfare(); }
+  }
+  function stepUpload(dt){
+    var U = G.over.upload;
+    U.t += dt;
+    if (!U.fly){
+      var g = U.route[U.n];
+      p.x = (g.rl + g.rr) / 2; p.y = g.y + 15; p.vx = 0; p.vy = 0;
+      if (U.t > 0.16){
+        if (U.n >= 3){ G.over.upload = null; endOverclock('SYSTEM HACKED!'); p.ground = null; return; }
+        U.fly = { x0: p.x, y0: p.y }; U.t = 0; tone(300, 0.25, 'square', 0.04, 900);
+      }
+      return;
+    }
+    var nx = U.route[U.n + 1], k = Math.min(1, U.t / 0.34), e = k * k * (3 - 2 * k), tx = (nx.rl + nx.rr) / 2;
+    p.x = U.fly.x0 + (tx - U.fly.x0) * e; p.y = U.fly.y0 + (nx.y + 15 - U.fly.y0) * e - Math.sin(Math.PI * k) * 24;
+    p.face = tx > U.fly.x0 ? 1 : -1; p.flipT = 0.3 * (1 - k);
+    burst(G.parts, p.x, p.y - 7, 2, ['#30e0f8', '#f838c8', '#58f858'], 12, 0, 0.5);
+    if (k >= 1){ U.n++; U.fly = null; U.t = 0; uploadSlam(); }
+  }
+  function stepOverclock(dt){
+    var O = G.over;
+    if (Math.random() < dt * 12) burst(G.parts, p.x + rand(-4, 4), p.y - rand(0, 14), 1, ['#30e0f8', '#f838c8'], 8, -20, 0.6);
+    if (O.upload){ stepUpload(dt); return; }
+    O.left -= dt;
+    if (O.left <= 0){ endOverclock('OVERCLOCK OFF'); return; }
+    if (me.has && Math.abs(p.x - CY_MAIN.cx) < 12 && p.y > CY_MAIN.y - 6 && p.y < CY_MAIN.y + 18){
+      // the upload dunk: the mainframe, both holo-hoops, and back to the mainframe
+      O.upload = { n: 0, t: 0, fly: null, route: [CY_MAIN, holo[0], holo[1], CY_MAIN] };
+      holo.forEach(function(g){ g.warp = 0; });
+      G.meter = null;
+      addCheer(G.pops, W / 2, 30, 'UPLOAD DUNK!!');
+      uploadSlam();
+    }
+  }
+
+  G.update = function(dt){
+    var i, ts = G.over ? CY_SLOW : 1;
+    G.t += dt; G.rimSnd -= dt; G.shake = Math.max(0, G.shake - dt); G.glitch = Math.max(0, G.glitch - dt);
+    var s = G.step;
+    if (s){
+      if (s.say && G.ui) G.ui.shown += dt * 45;
+      else if (s.wait){ s.t -= dt; if (s.t <= 0) nextStep(); }
+    }
+    // hover pads glide (slowly while overclocked) and carry whoever is standing on them
+    PADS.forEach(function(q, n){
+      var ox = q.x1, oy = q.y;
+      q.ph = (q.ph || 0) + dt * ts * q.sp;
+      if (q.ax != null){ var w = q.x2 - q.x1; q.x1 = q.ax + (Math.sin(q.ph) + 1) / 2 * q.rng; q.x2 = q.x1 + w; }
+      else q.y = q.ay - (Math.sin(q.ph) + 1) / 2 * q.rng;
+      if (p.ground === q.id){ p.x += q.x1 - ox; }
+    });
+    holo.forEach(function(g){
+      g.netT = Math.max(0, (g.netT || 0) - dt);
+      if (g.warp > 0){
+        g.warp -= dt;
+        if (g.warp <= 0.3 && g.next != null){ var sp = CY_SPOTS[g.next]; g.spot = g.next; g.cx = sp[0]; g.base = sp[1]; g.next = null; }
+        if (g.warp <= 0){ g.warp = 0; }
+      }
+      g.y = Math.round(g.base + Math.sin(G.t * ts * 1.5 + g.i) * 2);
+      g.rl = Math.round(g.cx - RIM_W / 2); g.rr = g.rl + RIM_W;
+    });
+    CY_MAIN.netT = Math.max(0, (CY_MAIN.netT || 0) - dt);
+    var play = G.phase === 'play';
+    if (play){
+      G.left -= dt;
+      if (G.over) stepOverclock(dt);
+      var mv = (G.meter && p.ground) ? 0 : (inp.l ? -1 : (inp.r ? 1 : 0));
+      if (G.meter && p.ground && (inp.l || inp.r)) p.face = inp.l ? -1 : 1;
+      p.jumpHeld = inp.a || inp.u;
+      if (!G.hang()) stepHero(G, p, dt, mv);
+      if (G.meter){
+        if (!me.has) G.meter = null;
+        else { G.meter.p += G.meter.dir * dt / (p.ground ? 1.4 : 0.55); if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; } }
+      }
+      // BOLT, slowed down while you're overclocked
+      var bdt = dt * ts;
+      if (B.stun > 0){ B.stun -= bdt; stepHero(G, B.h, bdt, 0); if (Math.random() < 0.3) G.parts.push({ x: B.h.x + rand(-6, 6), y: B.h.y - rand(10, 26), vx: 0, vy: -10, g: 0, life: 0.3, c: pick(['#30e0f8', '#fcfcfc']) }); }
+      else if (B.heat > 0){ B.heat -= bdt; stepHero(G, B.h, bdt, 0); if (Math.random() < 0.4) G.parts.push({ x: B.h.x + rand(-4, 4), y: B.h.y - 26, vx: rand(-6, 6), vy: -rand(15, 30), g: 0, life: 0.7, c: '#c8c8d0' }); }
+      else stepHero(G, B.h, bdt, boltThink(bdt));
+      if (me.has) holdBall(me, dt, !!G.meter || G.hang()); else looseBall(me, dt);
+      if (B.has) holdBall(B, bdt, !!B.meter); else looseBall(B, bdt);
+      var gs = geos();
+      for (i = 0; i < balls.length; i++){
+        var b = balls[i], bd = b.own === 'me' ? dt : bdt;
+        b.noPick = Math.max(0, b.noPick - bd);
+        if (b.free) for (var k = 0; k < 3; k++) stepBall(b, bd / 3, gs);
+      }
+      if (G.left <= 0 && !G.done) endGame();
+    } else if (B.has) holdBall(B, dt, false);
+    if (me.has && !play) holdBall(me, dt, false);
+    stepDrones(dt);
+    G.rain.forEach(function(r){ r.y += r.sp * dt; if (r.y > 110){ r.y = 0; r.x = Math.floor(rand(0, W)); } });
+    stepFx(G.parts, G.pops, dt);
+  };
+  function endGame(){
+    G.left = 0; G.meter = null; G.over = null; G.magic = null; G.phase = 'story';
+    var win = G.me > G.them;
+    if (win){ G.score += 10; addPop(G.pops, W / 2, 56, '+10 BEAT BOLT', '#58f878', true); }
+    run([{ wait: 1.4 }].concat(win ? [
+      say('BOLT', 'ERROR... ERROR... DOES NOT COMPUTE.'),
+      say('BOLT', 'RECALCULATING... YOU ARE... GOOD AT THIS.')] : G.me === G.them ? [
+      say('BOLT', 'A TIE. MY CIRCUITS DID NOT PREDICT THIS.')] : [
+      say('BOLT', 'AS PREDICTED. 99.7%.'),
+      say('YOU', 'RUN IT BACK, TIN CAN.')]).concat([
+      { fn: function(){ G.clearText = win ? 'SYSTEM DEFEATED!' : (G.me === G.them ? 'TIE GAME!' : 'BOLT WINS!'); G.done = true; } }]));
+  }
+
+  function drawBoltBot(c, t){
+    var h = B.h, x = Math.round(h.x), y = Math.round(h.y), f = h.face, img = BOLT_SPR[Math.abs(h.vx) > 3 && Math.floor(t * 12) % 2 ? 1 : 0];
+    var armsUp = !!B.meter, hot = B.heat > 0;
+    if (hot){ c.fillStyle = 'rgba(248,56,56,' + (0.25 + 0.15 * Math.sin(t * 12)).toFixed(2) + ')'; c.beginPath(); c.ellipse(x, y - 12, 11, 14, 0, 0, Math.PI * 2); c.fill(); }
+    function arm(sd){
+      var sx = x + sd * 5, sy = y - 14, ex = armsUp ? x + sd * 3 + f * 2 : x + sd * 8, ey = armsUp ? y - 27 : y - 7;
+      c.fillStyle = '#000'; pxLine(c, sx - 1, sy - 1, ex - 1, ey - 1, 3);
+      c.fillStyle = '#8890a8'; pxLine(c, sx, sy, ex, ey, 1);
+      c.fillStyle = '#58f8f8'; c.fillRect(ex, ey, 1, 1);
+    }
+    arm(-f);
+    c.drawImage(img, x - 7, y - 25);
+    // his eyes look the way he's facing; red when he's overheating
+    c.fillStyle = hot ? '#f83838' : (B.stun > 0 ? (Math.floor(t * 10) % 2 ? '#fcfcfc' : '#103040') : '#58f8f8');
+    c.fillRect(x - 2 + f, y - 19, 2, 1); c.fillRect(x + 1 + f, y - 19, 2, 1);
+    c.fillStyle = Math.floor(t * 3) % 2 ? '#f83838' : '#601010'; c.fillRect(x, y - 24, 1, 1);
+    arm(f);
+  }
+  G.draw = function(v){
+    var c = v.c, t = G.t, i, gs = geos();
+    gameXf(v);
+    c.drawImage(cyberBg(), 0, 0);
+    // data rain
+    G.rain.forEach(function(r){ c.fillStyle = 'rgba(88,248,136,.5)'; c.fillRect(r.x, Math.round(r.y), 1, 3); c.fillStyle = 'rgba(88,248,136,.9)'; c.fillRect(r.x, Math.round(r.y) + 3, 1, 1); });
+    PADS.forEach(function(q){ drawHoverPad(c, q, t); });
+    drawMainframe(c, CY_MAIN, t, CY_MAIN.netT || 0, !!(G.over && !G.over.upload));
+    holo.forEach(function(g){ drawHoloHoop(c, g, t, g.netT || 0); });
+    // drone birds, with the red laser sight when they line up a zap
+    for (i = 0; i < G.drones.length; i++){
+      var dr = G.drones[i], fr = DRONE_SPR[dr.kind][Math.floor(dr.f) % 2], img = dr.dir > 0 ? fr.r : fr.l;
+      if (dr.st === 'aim'){ for (var ly = Math.round(dr.y + 8); ly < FLOOR; ly += 3){ c.fillStyle = Math.floor(t * 12) % 2 ? '#f83838' : '#a01818'; c.fillRect(Math.round(dr.x), ly, 1, 2); } c.fillStyle = 'rgba(248,56,56,.5)'; c.fillRect(Math.round(dr.x) - 4, FLOOR - 1, 9, 1); }
+      if (dr.st === 'fall'){ c.save(); c.translate(Math.round(dr.x), Math.round(dr.y + 3)); c.rotate(dr.spin); c.drawImage(img, -7, -4); c.restore(); }
+      else {
+        c.drawImage(img, Math.round(dr.x - 7), Math.round(dr.y));
+        var rw = Math.floor(t * 30) % 2 ? 9 : 4;                      // the rotor
+        c.fillStyle = '#c8d0e0'; c.fillRect(Math.round(dr.x + dr.dir * 2 - rw / 2), Math.round(dr.y) - 2, rw, 1);
+        c.fillStyle = '#000'; c.fillRect(Math.round(dr.x + dr.dir * 2), Math.round(dr.y) - 1, 1, 2);
+      }
+    }
+    for (i = 0; i < G.zaps.length; i++) drawBolt(c, G.zaps[i].x, G.zaps[i].y, G.zaps[i].x + rand(-2, 2), FLOOR, G.zaps[i].t * 2.4);
+    drawBoltBot(c, t);
+    drawHero(c, G.look, p, (me.has && (!!G.meter || !p.ground)) || G.hang());
+    if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
+    if (B.meter) drawMeter(c, B.h.x - B.h.face * 8, B.h.y - 6, B.meter.p);
+    for (i = 0; i < balls.length; i++) if (balls[i].x > -10) drawBall(c, balls[i].x, balls[i].y, balls[i].rot, balls[i].k);
+    drawParts(c, G.parts);
+    // a faint scanline over the whole screen, and the glitch when something big happens
+    c.fillStyle = 'rgba(0,0,0,.12)'; for (var sy = 0; sy < H; sy += 3) c.fillRect(0, sy, W, 1);
+    if (G.glitch > 0){ for (var gk = 0; gk < 5; gk++){ var gy = Math.floor(rand(0, H)), gh = Math.floor(rand(1, 5)); c.drawImage(v.cv, 0, Math.floor(gy * v.S * v.dpr), v.cv.width, Math.max(1, Math.floor(gh * v.S * v.dpr)), rand(-6, 6), gy, W, gh); c.fillStyle = gk % 2 ? 'rgba(48,224,248,.25)' : 'rgba(248,56,200,.25)'; c.fillRect(0, gy, W, gh); } }
+    for (i = 0; i < gs.length; i++) if (!gs[i].warp) vText(v, gs[i].pts + (G.over ? ' x2' : ''), (gs[i].rl + gs[i].rr) / 2, gs[i].y + 18, gs[i].kind === 'main' ? '#f8a8f8' : '#a8f8f8', nameSize(v));
+    c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(W / 2 - 44, 2, 88, 12);
+    vText(v, 'YOU ' + G.me + '  -  ' + G.them + ' BOLT', W / 2, 8, '#fcfcfc', nameSize(v));
+    vText(v, 'BOLT', B.h.x, Math.min(H - 5, B.h.y + 6), '#58f8f8', Math.round(nameSize(v) * 0.8));
+    // the overclock charge, bottom left
+    if (!G.over){ for (i = 0; i < CY_OC_MAX; i++){ c.fillStyle = '#000'; c.fillRect(4 + i * 7, H - 7, 6, 4); c.fillStyle = i < G.oc ? '#30e0f8' : '#1a2038'; c.fillRect(5 + i * 7, H - 6, 4, 2); } }
+    drawPops(v, G.pops);
+  };
+  G.press = function(k){
+    if (G.phase !== 'play') return;
+    if (k === 'jump') heroJump(G, p);
+    else if (k === 'drop') heroDrop(p);
+    else if (k === 'shoot'){
+      if (!me.has){ addPop(G.pops, p.x, p.y - 22, 'RELOADING...', '#58f8f8'); return; }
+      G.meter = { p: 0, dir: 1 };
+    }
+  };
+  G.release = function(k){ if (k === 'shoot' && G.meter && me.has) shootBall(me, G.meter.p); };
+  G.hud = function(){
+    return { balls: -1, info: G.over ? (G.over.upload ? 'UPLOAD DUNK!' : 'OVERCLOCK ' + Math.ceil(G.over.left)) : 'OVERCLOCK ' + G.oc + '/' + CY_OC_MAX, time: G.phase === 'play' ? fmt(G.left) : '' };
+  };
+  G.startOverclock = function(){ startOverclock(); }; G.bolt = B; G.holo = holo; G.skipIntro = function(){ G.queue = []; G.step = null; G.ui = null; G.uiRev++; G.phase = 'play'; };   // handy for testing
+  return G;
+}
+
+/* ============================================================
    THE BOARDS
 ============================================================ */
 var BOARDS = [
@@ -3913,7 +4530,9 @@ var BOARDS = [
   { id: 'ice', name: 'FROZEN HOOPS', sub: 'SLIPPERY ICE, A POLAR BEAR, A SNOWMAN ON DEFENSE, AND PENGUINS', make: IceGame,
     how: 'WALL HOOPS 2 AND 3 PTS, AND THE 5 HANGS FROM THE ICICLES &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. A BALL THAT GOES IN CAN BONK A PENGUIN: +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' },
   { id: 'jam', name: 'THE REMATCH', sub: '2 ON 2, FULL COURT: YOU AND DRE VS FROSTY AND THE SNOWMAN', make: JamGame,
-    how: 'FIRST TO 15. 2S AND 3S. 10 SECOND SHOT CLOCK.<br>&#9664; &#9654; &#9650; &#9660; RUN THE WHOLE COURT &nbsp; WITH THE BALL: HOLD SPACE TO SHOOT (CLOSE = LAYUP), Z TO PASS<br>WITHOUT IT: Z CALLS FOR THE BALL FROM DRE, OR JUMPS TO BLOCK ON DEFENSE &nbsp; SPACE STEALS' }
+    how: 'FIRST TO 15. 2S AND 3S. 10 SECOND SHOT CLOCK.<br>&#9664; &#9654; &#9650; &#9660; RUN THE WHOLE COURT &nbsp; WITH THE BALL: HOLD SPACE TO SHOOT (CLOSE = LAYUP), Z TO PASS<br>WITHOUT IT: Z CALLS FOR THE BALL FROM DRE, OR JUMPS TO BLOCK ON DEFENSE &nbsp; SPACE STEALS' },
+  { id: 'cyber', name: 'CYBER COURT', sub: 'A NEON MACHINE WORLD: BEAT BOLT THE ROBOT AND DODGE THE DRONE BIRDS', make: CyberGame,
+    how: 'BEAT BOLT IN 2 MINUTES. MAINFRAME 3, HOLO-HOOPS 2 (THEY WARP WHEN SOMEONE SCORES)<br>RIDE THE HOVER PADS. BOLT OVERHEATS AFTER 3 SHOTS: THAT IS YOUR CHANCE<br>SHOOT DOWN DRONE BIRDS +3. RED-EYED DRONES ZAP: MOVE OFF THE RED LASER!<br>5 BASKETS OR DRONES = OVERCLOCK: SLOW TIME, LOCK-ON SHOTS, x2, AND THE UPLOAD DUNK' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
