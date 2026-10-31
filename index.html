@@ -2063,12 +2063,13 @@ function StreetGame(){
       addPop(G.pops, GYM_HX, hp.y - 12, 'DRE +' + ap, '#f87858');
     }
   }
-  // the special drink: every shot, you fly up after it and slam it home. Same points as the shot would be.
+  // the special drink: the shot goes in (1, or 2 from behind the line), you fly up after it, catch it out of the
+  // net and slam it back through for +1, and you come down with the ball already in your hands
   function shootAndSlam(){
     var b = me.ball;
     me.has = false; me.noBallT = 0; G.meter = null;
     b.free = false; b.live = false; b.shot = false; b.age = 0;
-    G.slam = { t: 0, x0: p.x, y0: p.y, bx0: p.x + p.face * 2, by0: p.y - 17, long: Math.abs(p.x - GYM_HX) > LONG_SHOT };
+    G.slam = { t: 0, x0: p.x, y0: p.y, bx0: p.x + p.face * 2, by0: p.y - 17, long: Math.abs(p.x - GYM_HX) > LONG_SHOT, scored: false, slammed: false };
     p.face = GYM_HX > p.x ? 1 : -1; p.ground = null; p.vx = 0; p.vy = 0;
     burst(G.parts, p.x, p.y - 17, 10, MAGIC_COLS, 40, 0, 0.5);
     sfx.dribble(); tone(300, 0.35, 'square', 0.05, 900);
@@ -2076,23 +2077,40 @@ function StreetGame(){
   function stepSlam(dt){
     var S = G.slam, b = me.ball, k, e;
     S.t += dt;
-    // the ball arcs up to the rim, and you rocket up right behind it
-    k = Math.min(1, S.t / 0.35);
-    b.x = S.bx0 + (GYM_HX - S.bx0) * k; b.y = S.by0 + (hp.y - 8 - S.by0) * k - Math.sin(Math.PI * k) * 30; b.rot += dt * 20;
-    e = Math.min(1, S.t / 0.45); e = e * e * (3 - 2 * e);
-    var tx = GYM_HX - 6;
-    p.x = S.x0 + (tx - S.x0) * e; p.y = S.y0 + (hp.y + 14 - S.y0) * e - Math.sin(Math.PI * e) * 22; p.vx = 0; p.vy = 0; p.flipT = 0.3 * (1 - e);
+    // you rocket up toward the rim right behind your shot
+    e = Math.min(1, S.t / 0.5); e = e * e * (3 - 2 * e);
+    var tx = GYM_HX - 6, top = hp.y + 14;
+    p.x = S.x0 + (tx - S.x0) * e; p.y = S.y0 + (top - S.y0) * e - Math.sin(Math.PI * e) * 22; p.vx = 0; p.vy = 0; p.flipT = 0.3 * (1 - e);
     burst(G.parts, p.x, p.y - 7, 1, MAGIC_COLS, 10, 0, 0.4);
-    if (S.t >= 0.45){
+    if (S.t < 0.35){
+      // the shot: an arc that drops right through the rim
+      k = S.t / 0.35;
+      b.x = S.bx0 + (GYM_HX - S.bx0) * k; b.y = S.by0 + (hp.y + 2 - S.by0) * k - Math.sin(Math.PI * k) * 30; b.rot += dt * 20;
+    } else if (!S.scored){
+      S.scored = true;
       var pts = S.long ? 2 : 1;
-      b.free = true; b.live = false; b.scored = true; b.ret = true; b.shot = false;
-      b.x = GYM_HX; b.y = hp.y + 3; b.vx = 0; b.vy = 80; b.noPick = 0.3;
-      G.netT = 0.8; G.score += pts; G.me += pts;
-      addCheer(G.pops, W / 2, 34, pick(['SHOOT & SLAM!', 'SLAMMED IT!', 'FOLLOW-UP SLAM!']));
-      addPop(G.pops, GYM_HX, hp.y - 14, '+' + pts, '#fcfc78', true);
+      G.score += pts; G.me += pts; G.netT = 0.6;
+      addPop(G.pops, GYM_HX, hp.y - 14, '+' + pts + (S.long ? ' FROM DOWNTOWN' : ''), '#fcfc78');
+      burst(G.parts, GYM_HX, hp.y + 4, 12, ['#f8d800', '#fcfcfc', '#58f878'], 60, 40, 0.7);
+      sfx.swish();
+    } else if (S.t < 0.5){
+      // through the net...
+      b.x = GYM_HX; b.y = hp.y + 2 + (S.t - 0.35) / 0.15 * 10;
+    } else if (S.t < 0.62){
+      // ...you catch it out of the net and slam it right back through
+      k = (S.t - 0.5) / 0.12;
+      p.x = tx; p.y = top - 4 + k * 6;
+      b.x = GYM_HX - 1; b.y = hp.y - 8 + k * 12;
+    } else if (!S.slammed){
+      S.slammed = true;
+      G.score += 1; G.me += 1; G.netT = 0.8;
+      addCheer(G.pops, W / 2, 34, 'AND THE SLAM! +1');
       burst(G.parts, GYM_HX, hp.y, 22, MAGIC_COLS.concat(['#f8d800']), 80, 40, 1);
-      G.shake = 0.4; p.vy = -60; p.ground = null;
+      G.shake = 0.4;
       sfx.swish(); tone(90, 0.2, 'square', 0.05, -30);
+      // and you come down with the ball already in your hands
+      p.vy = -40; p.ground = null;
+      grab(me);
       G.slam = null;
     }
   }
