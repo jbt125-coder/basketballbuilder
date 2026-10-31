@@ -3537,7 +3537,8 @@ function JamGame(){
     b.noPickT -= dt;
     if (b.holder){
       var a = b.holder, f = a.face;
-      if (a.meter || a.dunk){ b.x = a.x + f * 2; b.z = a.z; b.h = a.h + K(a).rel + 4; }
+      if (a.meter || a.dunk || (a === me && G.meter)){ b.x = a.x + f * 2; b.z = a.z; b.h = a.h + K(a).rel + 4; }
+      else if (a.h > 0){ b.x = a.x + f * 5; b.z = a.z + 1; b.h = a.h + 10; }   // in the air it stays in your hands
       else {
         a.dp += dt * (Math.abs(a.vx) + Math.abs(a.vz) > 5 ? 9 : 6);
         b.x = a.x + f * (a.kind === 'bear' ? 10 : (a.kind === 'snow' ? 11 : 6)); b.z = a.z + 2; b.h = BR + Math.abs(Math.sin(a.dp)) * (a.kind === 'snow' ? 9 : 8);
@@ -3781,13 +3782,31 @@ function JamGame(){
     if (k === 'b'){
       if (ball.holder === me){
         if (me.h === 0 && hyp(JAM_HX[hk] - me.x, JAM_HZ - me.z) < 30) layup(me);
-        else { G.meter = { p: 0, dir: 1 }; me.face = JAM_HX[hk] > me.x ? 1 : -1; }
+        else { G.meter = { p: 0, dir: 1, ideal: -1, aimT: 0 }; me.face = JAM_HX[hk] > me.x ? 1 : -1; aimMeter(0); }
       } else if (!trySteal(me) && ball.holder && ball.holder.team === 1 && dist(me, ball.holder) > 14) addPop(G.pops, W / 2, 40, 'GET CLOSER TO STEAL', '#fcfcfc');
       return true;
     }
     return k === 'u' || k === 'd';
   };
-  G.release = function(k){ if (k === 'shoot' && G.meter && ball.holder === me) shoot(me, G.meter.p); };
+  // work out the perfect power from where you are (it changes as you move or jump)
+  function aimMeter(dt){
+    var m = G.meter;
+    if (!m || ((m.aimT -= dt) > 0)) return;
+    m.aimT = 0.1;
+    var hk = attackHoop(0);
+    m.ideal = jamPower(hyp(JAM_HX[hk] - me.x, JAM_HZ - me.z), me.h + K(me).rel);
+  }
+  function releaseShot(){
+    var m = G.meter, pw = m.p;
+    m.aimT = 0; aimMeter(0);
+    if (m.ideal >= 0){
+      var off = Math.abs(pw - m.ideal);
+      if (off < 0.07){ pw = m.ideal; addPop(G.pops, me.x > G.cam.x ? W / 2 + 40 : W / 2 - 40, 40, 'PERFECT!', '#58f878'); tone(1320, 0.08, 'square', 0.04); }
+      else if (off < 0.2) pw += (m.ideal - pw) * 0.6;
+    }
+    shoot(me, pw);
+  }
+  G.release = function(k){ if (k === 'shoot' && G.meter && ball.holder === me) releaseShot(); };
   G.press = function(){};
   G.usesPass = true;
 
@@ -3810,7 +3829,8 @@ function JamGame(){
       if (!me.dunk && !G.autoMe){
         if (G.meter && ball.holder === me){
           if (me.h === 0){ me.vx = me.vz = 0; }
-          G.meter.p += G.meter.dir * dt / (me.h > 0 ? 0.55 : 1.2);          // faster in the air, like a jump shot on the other boards
+          G.meter.p += G.meter.dir * dt / (me.h > 0 ? 0.8 : 1.2);           // a little faster in the air
+          aimMeter(dt);
           if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
         } else {
           var mx = (inp.r ? 1 : 0) - (inp.l ? 1 : 0), mz = (inp.d ? 1 : 0) - (inp.u ? 1 : 0), ml = hyp(mx, mz) || 1;
@@ -3889,7 +3909,17 @@ function JamGame(){
       if (a.picked > 0){ c.fillStyle = '#f8d800'; var tall = a.kind === 'bear' ? 28 : (a.kind === 'snow' ? 34 : 18); for (var sk = 0; sk < 3; sk++){ var sa = t * 7 + sk * 2.1; c.fillRect(Math.round(x + Math.cos(sa) * 7), Math.round(y - tall + Math.sin(sa) * 2), 1, 1); } }
       if (ball.holder === a) drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, a.dp * a.face, 0);
       var mt = a === me ? G.meter : a.meter;
-      if (mt) drawMeter(c, x - a.face * (a.kind === 'bear' ? 6 : 0), y + (a.kind === 'bear' ? 4 : (a.kind === 'snow' ? -2 : 0)), mt.p);
+      if (mt){
+        var mxx = x - a.face * (a.kind === 'bear' ? 6 : 0), myy = y + (a.kind === 'bear' ? 4 : (a.kind === 'snow' ? -2 : 0));
+        drawMeter(c, mxx, myy, mt.p);
+        if (a === me && mt.ideal >= 0){
+          // the target line: let go here for a perfect shot
+          var ty = Math.round(myy - 30 + 20 - mt.ideal * 20), tx = Math.round(mxx - 4) - 7;
+          c.fillStyle = '#000'; c.fillRect(tx - 2, ty - 1, 7, 3);
+          c.fillStyle = Math.abs(mt.p - mt.ideal) < 0.07 ? '#58f878' : '#fcfcfc'; c.fillRect(tx - 1, ty, 5, 1);
+        } else if (a === me) vText(v, 'TOO FAR', scr(a.x, y - 34).x, scr(a.x, y - 34).y, '#f86060', Math.max(7, Math.round(nameSize(v) * 0.7)));
+        camXf(v);
+      }
     });
     if (!ballDrawn && ball.holder == null) drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, t * 8, 0);
     if (G.dark > 0.01){ c.fillStyle = 'rgba(8,8,24,' + (G.dark * 0.6).toFixed(3) + ')'; c.fillRect(JAM_BGX, 0, JAM_BGW, JAM_BGH); }
