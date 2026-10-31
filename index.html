@@ -4871,8 +4871,9 @@ function AlohaGame(){
       // bonk a nene
       for (i = 0; i < G.nene.length; i++){
         var n = G.nene[i];
-        if (!n.hit && Math.abs(b.x - n.x) < 8 && Math.abs(b.y - n.y - 3) < 6){
-          n.hit = 1; n.vy = -30; b.vx *= -0.4; b.vy = -Math.abs(b.vy) * 0.4;
+        if (!n.hit && !n.mode && Math.abs(b.x - n.x) < 8 && Math.abs(b.y - n.y - 3) < 6){
+          n.hit = 1; n.mode = 'dive'; n.dt = 0; n.vx = n.dir * n.sp; n.vy = 0; b.vx *= -0.4; b.vy = -Math.abs(b.vy) * 0.4;
+          addPop(G.pops, n.x, n.y - 16, 'HONK HONK!', '#f86060'); tone(900, 0.3, 'triangle', 0.04, -600);
           burst(G.parts, n.x, n.y + 3, 10, ['#b09a78', '#fcfcfc'], 40, 40, 0.6);
           tone(520, 0.15, 'sawtooth', 0.04, -150); tone(440, 0.18, 'sawtooth', 0.04, -120, 0.16);
           if (owner(b) === me){ G.score += 1; G.me += 1; addPop(G.pops, n.x, n.y - 8, 'HONK! +1', '#fcfc78'); }
@@ -4965,7 +4966,24 @@ function AlohaGame(){
     for (var i = G.nene.length - 1; i >= 0; i--){
       var n = G.nene[i];
       n.f += dt * 7; n.t += dt;
-      if (n.hit){ n.vy += 200 * dt; n.y += n.vy * dt; n.x += n.dir * 40 * dt; if (n.y > 60){ n.hit = 0; n.vy = 0; n.y0 = n.y; } }
+      if (n.mode === 'dive'){
+        // an angry nene dive-bombs you for a few seconds, like the birds on the other boards
+        n.f += dt * 9; n.dt += dt;
+        var ddx = p.x - n.x, ddy = (p.y - 6) - (n.y + 3), dd = hyp(ddx, ddy) || 1;
+        n.vx += (ddx / dd * 90 - n.vx) * dt * 2.5; n.vy += (ddy / dd * 90 - n.vy) * dt * 2.5;
+        n.x += n.vx * dt; n.y += n.vy * dt;
+        if (Math.abs(n.vx) > 5) n.dir = sgn(n.vx);
+        if (n.dt > 3) n.mode = 'flee';
+        if (heroHit(p, n.x, n.y + 3, 5, 4)){
+          if (p.vy > 0 && p.y - (n.y + 3) < 4){
+            // land on it: stomp it away
+            G.score += 1; G.me += 1; addPop(G.pops, n.x, n.y - 6, 'STOMP! +1', '#fcfc78');
+            p.vy = -190; p.ground = null; p.air2 = true; p.jumpHeld = true;
+            burst(G.parts, n.x, n.y + 3, 12, ['#b09a78', '#fcfcfc'], 60); sfx.squish();
+          } else if (!G.hang()) hurtHero(G, p, n.x, 'OUCH!');
+          n.mode = 'flee'; n.dir = p.x < n.x ? 1 : -1;
+        }
+      } else if (n.mode === 'flee'){ n.x += n.dir * 70 * dt; n.y -= 60 * dt; if (n.y < -20) n.x = W * 3; }
       else { n.x += n.dir * n.sp * dt; n.y = n.y0 + Math.sin(n.t * 2) * 2; if (n.y0 > 20) n.y0 -= dt * 8; }
       if (n.x < -30 || n.x > W + 30) G.nene.splice(i, 1);
     }
