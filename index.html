@@ -5760,7 +5760,7 @@ function EquusGame(){
 ============================================================ */
 TALK_COLS['MR. FIRE'] = '#f8a060';
 var BR_KIND = {
-  me:    { speed: 82, err: 0, rel: 17, steal: 0.4 },
+  me:    { speed: 82, err: 0, rel: 17, steal: 0.5 },
   dre:   { speed: 78, err: 0.03, rel: 17, steal: 0.3, layup: 0.8 },
   bear:  { speed: 76, err: 0.04, rel: 25, steal: 0.28, dunker: true, range: 80, name: 'FROSTY', tall: 30, dx: 10, big: true, think: 1 },
   snow:  { speed: 72, err: 0.03, rel: 24, steal: 0.25, layup: 0.75, name: 'MR. FIRE', tall: 33, dx: 11, big: true, think: 1 },
@@ -6027,7 +6027,7 @@ function BracketGame(){
         var o = fs[i];
         if (b.tried.indexOf(o) < 0 && dist(b, o) < 8 && b.h < 26){
           b.tried.push(o);
-          if (Math.random() < (b.team === 1 ? 0.18 : 0.3)){ give(o); addCheer(G.pops, W / 2, 34, 'PICKED OFF!'); return; }
+          if (Math.random() < (b.team === 1 ? 0.35 : 0.3)){ give(o); addCheer(G.pops, W / 2, 34, 'PICKED OFF!'); return; }
         }
       }
     }
@@ -6052,10 +6052,14 @@ function BracketGame(){
   }
   function trySteal(a){
     var hd = ball.holder;
-    if (!hd || hd.team === a.team || a.stealCD > 0 || dist(a, hd) > 14 || hd.dunk) return false;
-    a.stealCD = 0.7;
+    var reach = a === me ? 22 : 14;                                     // you've got long arms
+    if (!hd || hd.team === a.team || a.stealCD > 0 || dist(a, hd) > reach || hd.dunk) return false;
+    a.stealCD = a === me ? 0.35 : 0.7;
     if (hd.meter || (hd === me && G.meter)) return false;              // you can't strip a shooter
-    if (Math.random() < K(a).steal * (K(hd).secure || (hd.team === 1 ? 0.45 : 1))){ give(a); addCheer(G.pops, W / 2, 34, a.team === 0 ? 'STEAL!' : 'STOLEN!'); tone(900, 0.1, 'square', 0.04, 600); return true; }
+    // you and Dre are good at it now; the King protects the ball best
+    var guard = a.team === 0 ? (hd.kind === 'king' ? 0.6 : 1) : (K(hd).secure || 1);
+    if (Math.random() < K(a).steal * guard){ give(a); addCheer(G.pops, W / 2, 34, a.team === 0 ? 'STEAL!' : 'STOLEN!'); tone(900, 0.1, 'square', 0.04, 600); return true; }
+    if (a === me) addPop(G.pops, W / 2, 40, 'SWIPE!', '#fcfcfc');
     tone(300, 0.06, 'square', 0.03); return false;
   }
 
@@ -6329,7 +6333,7 @@ function BracketGame(){
       if (ball.holder === me){
         if (me.h === 0 && hyp(JAM_HX[hk] - me.x, JAM_HZ - me.z) < 30) layup(me);
         else { G.meter = { p: 0, dir: 1, ideal: -1, aimT: 0 }; me.face = JAM_HX[hk] > me.x ? 1 : -1; aimMeter(0); }
-      } else if (!trySteal(me) && ball.holder && ball.holder.team === 1 && dist(me, ball.holder) > 14) addPop(G.pops, W / 2, 40, 'GET CLOSER TO STEAL', '#fcfcfc');
+      } else if (!trySteal(me) && ball.holder && ball.holder.team === 1 && dist(me, ball.holder) > 22) addPop(G.pops, W / 2, 40, 'GET CLOSER TO STEAL', '#fcfcfc');
       return true;
     }
     return k === 'u' || k === 'd';
