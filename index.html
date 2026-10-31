@@ -2348,18 +2348,21 @@ function StreetGame(){
    a polar bear to beat, a snowman on defense, and penguins that belly-slide when you bonk them
 ============================================================ */
 var ICE_CEIL = 10, ICE_SECS = 120, ICE_BONKS = 3, TEN_SHOT_GAP = 0.07, TURBO_PTS = 6, SHATTER_PTS = 25;
+// the 2 and 3 point hoops are on the side walls with backboards; the 5 pointer hangs from the icicles up top
 var ICE_HOOPS = [
-  { x: 58, y: 92, pts: 2, ph: 0 },
-  { x: 128, y: 38, pts: 5, ph: 2.1 },
-  { x: 198, y: 70, pts: 3, ph: 4.2 }
+  { x: 6 + 4 + RIM_W / 2, y: 88, pts: 2, side: -1, bx: 6 },
+  { x: 128, y: 52, pts: 5, ph: 2.1 },
+  { x: W - 9 - 1 - RIM_W / 2, y: 70, pts: 3, side: 1, bx: W - 9 }
 ];
 // the three glass slam dunk hoops that show up in magic mode: top left, middle, top right
 var ICE_DUNKS = [{ x: 24, y: 30 }, { x: 128, y: 86 }, { x: 232, y: 30 }];
-var PENGUIN_HOMES = [12, 24, 92, 164, 232, 244];
+var PENGUIN_HOMES = [16, 30, 108, 148, 226, 240];
 var SNOW_LINES = ['BRRR-JECTED!', 'ICE COLD D!', 'NOT IN MY IGLOO!', 'FROZEN OUT!'];
 
 function iceGeo(i, t){
-  var h = ICE_HOOPS[i], cx = h.x + Math.sin(t * 1.2 + h.ph) * 3, rl = Math.round(cx - RIM_W / 2);
+  var h = ICE_HOOPS[i];
+  if (h.side){ var wl = h.side > 0 ? h.bx - 1 - RIM_W : h.bx + 4; return { i: i, cx: wl + RIM_W / 2, rl: wl, rr: wl + RIM_W, y: h.y, pts: h.pts, side: h.side, bx: h.bx }; }
+  var cx = h.x + Math.sin(t * 1.2 + h.ph) * 3, rl = Math.round(cx - RIM_W / 2);
   return { i: i, cx: cx, rl: rl, rr: rl + RIM_W, y: h.y + Math.round(Math.sin(t * 0.9 + h.ph)), pts: h.pts };
 }
 /* where a shot crosses height ry on the way down, and the power that drops it on x = cx */
@@ -2459,6 +2462,12 @@ function iceBg(){
   c.fillStyle = '#d8f2ff'; for (i = 0; i < 26; i++){ var sx0 = Math.floor(r() * W), sy0 = 119 + Math.floor(r() * 12); for (var k2 = 0; k2 < 6; k2++) c.fillRect(sx0 + k2, sy0 - Math.floor(k2 / 3), 1, 1); }
   c.fillStyle = '#88c4e4'; for (i = 0; i < 40; i++) c.fillRect(Math.floor(r() * W), 118 + Math.floor(r() * 14), 2, 1);
   c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(0, 118, W, 1);
+  // frozen walls on both sides of the court
+  [0, W - 4].forEach(function(wx){
+    c.fillStyle = '#000'; c.fillRect(wx === 0 ? 4 : wx - 1, ICE_CEIL, 1, FLOOR - ICE_CEIL);
+    c.fillStyle = '#8cc8e8'; c.fillRect(wx, ICE_CEIL, 4, FLOOR - ICE_CEIL);
+    c.fillStyle = '#c8ecfc'; for (var wy = ICE_CEIL + 3; wy < FLOOR; wy += 7) c.fillRect(wx + 1, wy, 2, 3);
+  });
   // snowy front edge
   c.fillStyle = '#000'; c.fillRect(0, FLOOR, W, 1);
   c.fillStyle = '#f4faff'; c.fillRect(0, FLOOR + 1, W, H - FLOOR - 1);
@@ -2487,6 +2496,21 @@ function drawIcicle(c, ic, top){
   c.fillStyle = '#000'; c.fillRect(x, top + len, 1, 1);
 }
 function drawIceHoop(c, g, netT){
+  if (g.side){
+    // a backboard bolted to the ice wall
+    var wx = g.side > 0 ? W - 4 : 0, k;
+    c.fillStyle = '#000'; c.fillRect(Math.min(wx, g.bx) - 1, g.y - 13, Math.abs(wx - g.bx) + 6, 4); c.fillRect(Math.min(wx, g.bx) - 1, g.y - 1, Math.abs(wx - g.bx) + 6, 3);
+    c.fillStyle = '#9aa0aa'; c.fillRect(Math.min(wx, g.bx), g.y - 12, Math.abs(wx - g.bx) + 4, 2); c.fillRect(Math.min(wx, g.bx), g.y, Math.abs(wx - g.bx) + 4, 1);
+    c.fillStyle = '#000'; c.fillRect(g.bx - 1, g.y - 21, 5, 28);
+    c.fillStyle = '#fcfcfc'; c.fillRect(g.bx, g.y - 20, 3, 26);
+    c.fillStyle = '#f83800'; c.fillRect(g.bx + 1, g.y - 8, 1, 6);
+    drawNet(c, g.rl, g.rr, g.y, netT, 'rgba(252,252,252,.9)');
+    c.fillStyle = '#000'; c.fillRect(g.rl - 1, g.y - 1, RIM_W + 3, 4);
+    c.fillStyle = '#f87800'; c.fillRect(g.rl, g.y, RIM_W + 1, 2);
+    c.fillStyle = '#e8f8ff'; c.fillRect(g.rl + 3, g.y, 3, 1); c.fillRect(g.rl + 13, g.y, 2, 1);
+    for (k = 0; k < 3; k++){ c.fillStyle = '#c8ecfc'; c.fillRect(g.rl + 4 + k * 5, g.y + 2, 1, 2 + k % 2); }   // little icicles under the rim
+    return;
+  }
   var ax = Math.round(g.cx), ay = ICE_CEIL + 1, k;
   [g.rl + 1, g.rr - 1].forEach(function(ex){                           // two chains up to one hook in the ice
     var n = Math.ceil(hyp(ax - ex, g.y - ay) / 2);
@@ -2728,6 +2752,10 @@ function IceGame(){
           if (vn < 0){ b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; } }
         }
       });
+      if (g.side && b.y > g.y - 20 - BR && b.y < g.y + 6 + BR){
+        if (g.side > 0 && b.x + BR > g.bx && b.x < g.bx + 2 && b.vx > 0){ b.x = g.bx - BR; b.vx = -b.vx * 0.55; sfx.board(); }
+        if (g.side < 0 && b.x - BR < g.bx + 3 && b.x > g.bx + 1 && b.vx < 0){ b.x = g.bx + 3 + BR; b.vx = -b.vx * 0.55; sfx.board(); }
+      }
     }
     if (b.vy < 0 && b.y < ICE_CEIL + 18){
       for (i = 0; i < G.icicles.length; i++){
@@ -2742,7 +2770,7 @@ function IceGame(){
     if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
     // the snowman swats your shots: his body, or his stick arms when they're up
     if (b.own === 'me' && b.live && !b.blocked && !S.hot && Math.abs(b.x - S.x) < 8 && b.y > FLOOR - (38 + S.arms * 12) && b.y < FLOOR - 2) snowBlock(b);
-    if (Math.abs(b.vx) + Math.abs(b.vy) > 30){
+    if (b.scored && Math.abs(b.vx) + Math.abs(b.vy) > 30){                    // only a ball that went through a hoop can bonk a penguin
       for (i = 0; i < G.pengs.length; i++){
         var pg = G.pengs[i];
         if (pg.st === 'stand' && Math.abs(b.x - pg.x) < 5 && b.y > FLOOR - 12){ bonk(pg, b); break; }
@@ -2819,7 +2847,7 @@ function IceGame(){
       // try spots, closest first, until he finds one he can make the shot from
       var hh = ICE_HOOPS[B.hoop];
       for (var tries = 0; tries < 24 && B.spot == null; tries++){
-        var sx = clamp(hh.x + (Math.random() < 0.5 ? -1 : 1) * (40 + tries * 5 + rand(0, 8)), 14, W - 14), sf = hh.x > sx ? 1 : -1;
+        var sx = clamp(hh.x + (hh.side ? -hh.side : (Math.random() < 0.5 ? -1 : 1)) * (40 + tries * 5 + rand(0, 8)), 14, W - 14), sf = hh.x > sx ? 1 : -1;
         if (bestPowerAt(sx + sf * 2, FLOOR - B.top, sf, hh.x, hh.y) >= 0) B.spot = sx;
       }
       B.thinkT = rand(0.2, 0.45);
@@ -3141,7 +3169,7 @@ var BOARDS = [
   { id: 'sky', name: 'IN THE CLOUDS', sub: "AIR JORDANN'S ON: TRIPLE JUMP, SKY HOOP, RAIN CLOUDS", make: function(){ return CourtGame(true); },
     how: "YOU'RE WEARING THE AIR JORDANN'S: JUMP HIGHER, AND JUMP 3 TIMES<br>SPRINGY CLOUDS &nbsp; LIT HOOPS 2, 3, 5, THEN MAGIC<br>THE GOLDEN SKY HOOP IS WORTH 7 ANY TIME<br>DON'T HIT A RAIN CLOUD: LIGHTNING TAKES HALF YOUR POINTS! &nbsp; 2 MINUTES" },
   { id: 'ice', name: 'FROZEN HOOPS', sub: 'SLIPPERY ICE, A POLAR BEAR, A SNOWMAN ON DEFENSE, AND PENGUINS', make: IceGame,
-    how: 'HOOPS HANG FROM THE ICICLES: 2, 3 AND 5 PTS &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. BONK A PENGUIN +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' }
+    how: 'WALL HOOPS 2 AND 3 PTS, AND THE 5 HANGS FROM THE ICICLES &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. A BALL THAT GOES IN CAN BONK A PENGUIN: +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
