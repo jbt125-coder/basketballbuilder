@@ -1573,7 +1573,7 @@ var CAR_COLS = ['#d82800', '#2858f0', '#f8d800', '#38b818', '#fcfcfc', '#303030'
 var AI_SKILL = {
   easy:  { err: 0.1,   think: [2, 3.2],    three: 0.2 },
   shark: { err: 0.003, think: [0.25, 0.45], three: 0.85 },
-  good:  { err: 0.032, think: [0.7, 1.1],  three: 0.45 },
+  good:  { err: 0.04,  think: [0.9, 1.4],  three: 0.4 },
   ok:    { err: 0.055, think: [0.9, 1.4],  three: 0.4 }
 };
 function money(n){ return Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : n.toFixed(2); }
@@ -1805,6 +1805,8 @@ function StreetGame(){
     run([{ wait: 1.2 }, { walk: A, to: spot }, { fn: face },
       say('DRE', 'YO! NOT BAD.'),
       say('DRE', "BET YOU $20 I CAN TAKE YOU. TWO MINUTES, SAME HOOP, MOST POINTS WINS."),
+      say('DRE', 'STREET RULES: EVERY BUCKET IS 1. FROM BEHIND THE LINE IS 2.'),
+      say('DRE', 'NO STREAKS, NO HEATING UP. JUST HOOPS.'),
       say('YOU', "YOU'RE ON!"),
       { fn: function(){ startMatch(1); } }]);
   }
@@ -1823,7 +1825,7 @@ function StreetGame(){
     var n = G.match;
     G.phase = 'story'; G.meter = null; A.meter = null; A.spot = null; G.magic = null;
     if (n === 2 && G.me >= G.them){                                       // double or nothing always goes to Dre
-      G.them = G.me + 3;
+      G.them = G.me + 2;
       addPop(G.pops, W / 2, 56, 'DRE HITS A BUZZER BEATER!', '#f87858', true);
     }
     var win = G.me > G.them;
@@ -2048,16 +2050,15 @@ function StreetGame(){
     if (G.phase !== 'warm' && G.phase !== 'match' && G.phase !== 'free' && G.phase !== 'last') return;   // only counts while you're out there shooting
     var long = Math.abs(b.from - GYM_HX) > LONG_SHOT;
     if (b.own === 'me'){
-      var pts = long ? 3 : 2, label = long ? 'THREE!' : pick(['SWISH!', 'BUCKET!', 'NOTHIN NET!', 'CASH!']);
+      // street rules: a bucket is 1, from behind the line is 2
+      var pts = long ? 2 : 1, label = long ? 'FROM DOWNTOWN!' : pick(['SWISH!', 'BUCKET!', 'NOTHIN NET!', 'CASH!']);
       if (b.magic){ pts *= 2; label = long ? 'MAGIC THREE!' : 'MAGIC SHOT!'; addCheer(G.pops, W / 2, 34); }
-      else if (G.streak >= 3){ pts = 5; label = 'ON FIRE!'; }
       G.score += pts; if (G.phase === 'match') G.me += pts;
       addPop(G.pops, GYM_HX, hp.y - 12, '+' + pts, '#fcfc78');
       addPop(G.pops, GYM_HX, hp.y - 22, label, '#fcfcfc');
       G.streak++;
-      if (G.streak === 3 && !b.magic){ addPop(G.pops, GYM_HX, hp.y - 34, 'SHOOTING STREAK!', '#f87800'); sfx.bonus(); }
     } else {
-      var ap = long ? 3 : 2;
+      var ap = long ? 2 : 1;
       if (G.phase === 'match') G.them += ap;
       addPop(G.pops, GYM_HX, hp.y - 12, 'DRE +' + ap, '#f87858');
     }
@@ -2067,9 +2068,9 @@ function StreetGame(){
     me.has = false; me.noBallT = 0;
     b.free = true; b.live = false; b.shot = false; b.scored = true; b.ret = true; b.magic = false;
     b.x = GYM_HX; b.y = hp.y + 3; b.vx = 0; b.vy = 80; b.noPick = 0.6;
-    G.netT = 0.8; G.score += 6; G.me += 6; G.streak++;
+    G.netT = 0.8; G.score += 3; G.me += 3; G.streak++;
     addCheer(G.pops, W / 2, 34, 'SLAM DUNK!!');
-    addPop(G.pops, GYM_HX, hp.y - 14, '+6', '#fcfc78', true);
+    addPop(G.pops, GYM_HX, hp.y - 14, '+3', '#fcfc78', true);
     burst(G.parts, GYM_HX, hp.y, 24, MAGIC_COLS.concat(['#f8d800']), 80, 40, 1);
     G.shake = 0.5; p.vy = -90;
     sfx.swish(); sfx.bonus();
@@ -2245,7 +2246,7 @@ function StreetGame(){
       var b = balls[i];
       b.noPick = Math.max(0, b.noPick - dt);
       if (b.free) for (var k = 0; k < 3; k++) stepBall(b, dt / 3);
-      if (b.live && b.own === 'me' && (G.streak >= 3 || b.magic)) G.parts.push({ x: b.x + rand(-2, 2), y: b.y + rand(-2, 2), vx: rand(-10, 10), vy: rand(-20, 0), g: 0, life: 0.35, c: b.magic ? pick(MAGIC_COLS) : pick(['#f83800', '#f87800', '#f8d800']) });
+      if (b.live && b.own === 'me' && b.magic) G.parts.push({ x: b.x + rand(-2, 2), y: b.y + rand(-2, 2), vx: rand(-10, 10), vy: rand(-20, 0), g: 0, life: 0.35, c: b.magic ? pick(MAGIC_COLS) : pick(['#f83800', '#f87800', '#f8d800']) });
     }
     stepFx(G.parts, G.pops, dt);
     if (play){
@@ -4566,7 +4567,7 @@ function CyberGame(){
 ============================================================ */
 var BOARDS = [
   { id: 'street', name: 'STREET BALL', sub: 'AN OUTDOOR COURT, A CHAIN LINK FENCE, AND A GUY WHO WANTS TO BET YOU', make: StreetGame,
-    how: 'WARM UP FOR A MINUTE... THEN SOMEBODY MIGHT WANT TO BET YOU.<br>BASKET 2 &nbsp; BEHIND THE 3 LINE 3 &nbsp; 3 IN A ROW = ON FIRE, 5 EACH<br>YOUR CASH IS IN THE TOP RIGHT. SPEND IT WISELY.' },
+    how: 'WARM UP FOR A MINUTE... THEN SOMEBODY MIGHT WANT TO BET YOU.<br>STREET RULES: A BUCKET IS 1, BEHIND THE LINE IS 2<br>YOUR CASH IS IN THE TOP RIGHT. SPEND IT WISELY.' },
   { id: 'gym', name: 'FREE THROWS', sub: 'SHOOT HOOPS IN THE GYM. WATCH OUT FOR THE BIRDS!', make: GymGame,
     how: 'BASKET 2 &nbsp; BEHIND THE 3 LINE 3 &nbsp; 3 IN A ROW = ON FIRE, 5 EACH<br>OFF A BIRD AND IN = 10 &nbsp; STOMP A BIRD +5<br>BIRDS YOU HIT DIVE-BOMB YOU, AND WATCH OUT FOR POOP!<br>3 HEARTS &nbsp; 1 MINUTE &nbsp; EVERY BASKET ADDS 3 SECONDS' },
   { id: 'beach', name: 'HOOPS AT THE BEACH', sub: 'PALM TREE HOOPS: LIGHT THEM UP IN ORDER, THEN MAGIC', make: function(){ return CourtGame(false); },
