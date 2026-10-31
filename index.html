@@ -4600,17 +4600,17 @@ function CyberGame(){
 }
 
 /* ============================================================
-   BOARD 8: VOLCANO BEACH — 2 on 1 against Kai and Lei, with surfers on the waves, nene flying over,
-   seals waddling onto the court, and a hibiscus hoop that blooms. Score in it while it's blooming and a
-   volcano rises from the ocean: slam dunk into the crater and it erupts.
+   BOARD 8: VOLCANO BEACH — 2 on 1 against Kai and Lei, with waves rolling in, surfers, nene flying over and
+   seals on the court. Hop on three seals and the hibiscus on the tiki pole opens; score in the tiki hoop while
+   it's open and both volcanoes wake up. Slam dunk into their craters, back and forth, to calm them down.
 ============================================================ */
-var AL_SECS = 90, AL_ERUPT_PTS = 20, AL_MAGIC_SECS = 20, AL_SEA = 112;
+var AL_SECS = 90, AL_SEA = 112, AL_SLAM_PTS = 2, AL_SLAMS = 3, AL_STOMPS = 3;
 var AL_TIKI = { i: 0, kind: 'tiki', side: -1, bx: 12, y: 86, pts: 2 };
 var AL_PALM = { i: 1, kind: 'palm', side: 1, bx: 240, y: 70, pts: 3 };
-var AL_HIB = { i: 2, kind: 'hib', side: 0, cx: 128, y: 74, pts: 2 };
 [AL_TIKI, AL_PALM].forEach(function(g){ g.rl = g.side > 0 ? g.bx - 1 - RIM_W : g.bx + 4; g.rr = g.rl + RIM_W; g.cx = g.rl + RIM_W / 2; });
-AL_HIB.rl = Math.round(AL_HIB.cx - RIM_W / 2); AL_HIB.rr = AL_HIB.rl + RIM_W;
 TALK_COLS.KAI = '#58d8a0'; TALK_COLS.LEI = '#f878b8';
+// the two volcanoes behind the court: where their craters are, for the slams
+var AL_VOLC = [{ cx: 64, peak: 22, half: 70, top: 5 }, { cx: 206, peak: 38, half: 55, top: 4 }];
 var KAI_LOOK = { shirt: 4, skin: 2, hat: 0, hc: 0, shoe: 0 }, LEI_LOOK = { shirt: 7, skin: 1, hat: 10, hc: 0, shoe: 0 };
 
 /* nene, the Hawaiian state bird: buff body, black head and beak */
@@ -4638,21 +4638,10 @@ function alohaBg(){
   for (i = 0; i < sky.length; i++){ c.fillStyle = sky[i]; c.fillRect(0, Math.floor(i * bh), W, Math.ceil(bh) + 1); }
   c.fillStyle = '#fcfcfc';
   [[200, 14], [40, 22], [140, 10]].forEach(function(cl){ for (var k = 0; k < 4; k++){ c.beginPath(); c.arc(cl[0] + k * 7, cl[1] - (k % 2) * 2, 5 + (k % 2) * 2, 0, Math.PI * 2); c.fill(); } });
-  // the volcanoes: dark peaks with green slopes
-  function mountain(cx, peak, half, top){
-    for (y = peak; y < 80; y++){
-      var w = (y - peak) / (80 - peak) * half + top;
-      c.fillStyle = y - peak < 8 ? '#4a3a3a' : (y - peak < 20 ? '#5a4838' : '#3a7a38'); c.fillRect(Math.round(cx - w), y, Math.round(w * 2), 1);
-      c.fillStyle = y - peak < 20 ? '#3a2c2c' : '#2c6028'; c.fillRect(Math.round(cx), y, Math.round(w), 1);
-    }
-    c.fillStyle = '#f87818'; c.fillRect(Math.round(cx - top + 1), peak, Math.round(top * 2 - 2), 1);
-  }
-  mountain(64, 22, 70, 5);
-  mountain(206, 38, 55, 4);
   // the ocean, with rows of waves
   for (y = 76; y < AL_SEA; y++){ c.fillStyle = y < 84 ? '#1aa8c8' : (y < 96 ? '#18b8d0' : '#30c8d8'); c.fillRect(0, y, W, 1); }
-  c.fillStyle = 'rgba(255,255,255,.35)';
-  for (i = 0; i < 40; i++) c.fillRect(Math.floor(r() * W), 78 + Math.floor(r() * 30), 3 + Math.floor(r() * 5), 1);
+  c.fillStyle = 'rgba(255,255,255,.25)';
+  for (i = 0; i < 24; i++) c.fillRect(Math.floor(r() * W), 78 + Math.floor(r() * 30), 2 + Math.floor(r() * 3), 1);
   // the beach and the court
   c.fillStyle = '#fcfcfc'; c.fillRect(0, AL_SEA, W, 2);
   c.fillStyle = '#f0d898'; c.fillRect(0, AL_SEA + 2, W, FLOOR - AL_SEA - 2);
@@ -4711,68 +4700,66 @@ function drawAlohaPalm(c, g, t, netT){
   c.fillStyle = '#000'; c.fillRect(g.rl - 1, g.y - 1, RIM_W + 3, 4);
   c.fillStyle = '#f87800'; c.fillRect(g.rl, g.y, RIM_W + 1, 2);
 }
-/* the hibiscus hoop: a bamboo pole with the flower at the top. bloom goes from 0 (a bud) to 1 (wide open) */
-function drawHibiscus(c, g, t, netT, bloom){
-  var px = g.cx + 6, k;
-  c.fillStyle = '#000'; c.fillRect(px - 2, g.y - 18, 5, FLOOR - g.y + 18);
-  c.fillStyle = '#a8c858'; c.fillRect(px - 1, g.y - 17, 3, FLOOR - g.y + 17);
-  c.fillStyle = '#6a8a28'; for (k = g.y - 10; k < FLOOR; k += 12) c.fillRect(px - 1, k, 3, 1);
-  c.fillStyle = '#000'; c.fillRect(g.rl, g.y - 3, px - g.rl, 2);
-  var fx = px, fy = g.y - 24;
+/* the hibiscus on top of the tiki pole: bloom goes from 0 (a closed bud) to 1 (wide open) */
+function drawHibiscus(c, fx, fy, t, bloom){
+  var k;
   if (bloom < 0.15){
-    // a closed bud
     c.fillStyle = '#000'; c.fillRect(fx - 3, fy - 4, 7, 9);
     c.fillStyle = '#38a838'; c.fillRect(fx - 2, fy, 5, 4);
     c.fillStyle = '#e02838'; c.fillRect(fx - 1, fy - 3, 3, 4);
-  } else {
-    var r = 3 + bloom * 6;
+    return;
+  }
+  var r = 3 + bloom * 6;
+  for (var pass = 0; pass < 2; pass++){
     for (k = 0; k < 5; k++){
       var a = -Math.PI / 2 + k * Math.PI * 2 / 5 + Math.sin(t * 2) * 0.05;
-      c.fillStyle = '#000'; c.beginPath(); c.arc(fx + Math.cos(a) * r * 0.75, fy + Math.sin(a) * r * 0.75, r * 0.6 + 1, 0, Math.PI * 2); c.fill();
+      c.fillStyle = pass ? (k % 2 ? '#f83848' : '#e02838') : '#000';
+      c.beginPath(); c.arc(fx + Math.cos(a) * r * 0.75, fy + Math.sin(a) * r * 0.75, r * 0.6 + (pass ? 0 : 1), 0, Math.PI * 2); c.fill();
     }
-    for (k = 0; k < 5; k++){
-      var a2 = -Math.PI / 2 + k * Math.PI * 2 / 5 + Math.sin(t * 2) * 0.05;
-      c.fillStyle = k % 2 ? '#f83848' : '#e02838'; c.beginPath(); c.arc(fx + Math.cos(a2) * r * 0.75, fy + Math.sin(a2) * r * 0.75, r * 0.6, 0, Math.PI * 2); c.fill();
-    }
-    c.fillStyle = '#a01020'; c.beginPath(); c.arc(fx, fy, r * 0.35, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#f8d800'; c.fillRect(Math.round(fx), Math.round(fy - r * 0.9), 1, Math.round(r * 0.8)); c.fillRect(Math.round(fx) - 1, Math.round(fy - r * 0.9), 3, 1);
-    if (bloom > 0.95 && Math.random() < 0.4){ c.fillStyle = '#fff6a0'; c.fillRect(Math.round(fx + rand(-12, 12)), Math.round(fy + rand(-10, 10)), 1, 1); }
   }
-  drawNet(c, g.rl, g.rr, g.y, netT, 'rgba(252,252,252,.9)');
-  c.fillStyle = '#000'; c.fillRect(g.rl - 1, g.y - 1, RIM_W + 3, 4);
-  c.fillStyle = bloom > 0.95 ? (Math.floor(t * 6) % 2 ? '#f83848' : '#f8d800') : '#f87800'; c.fillRect(g.rl, g.y, RIM_W + 1, 2);
+  c.fillStyle = '#a01020'; c.beginPath(); c.arc(fx, fy, r * 0.35, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#f8d800'; c.fillRect(Math.round(fx), Math.round(fy - r * 0.9), 1, Math.round(r * 0.8)); c.fillRect(Math.round(fx) - 1, Math.round(fy - r * 0.9), 3, 1);
+  if (bloom > 0.95 && Math.random() < 0.4){ c.fillStyle = '#fff6a0'; c.fillRect(Math.round(fx + rand(-12, 12)), Math.round(fy + rand(-10, 10)), 1, 1); }
 }
-/* the magic volcano rising out of the ocean; grow goes 0..1, lava 0..1 is how far the lava has run down */
-function drawMagicVolcano(c, grow, lava, t, glow){
-  if (grow <= 0) return;
-  var peak = AL_SEA - grow * 80, half = 80 * grow, top = 18, y, k;
-  for (y = Math.floor(peak); y < AL_SEA; y++){
-    var w = top + (y - peak) / (AL_SEA - peak + 0.01) * (half - top);
-    c.fillStyle = '#000'; c.fillRect(Math.round(128 - w - 1), y, Math.round(w * 2 + 2), 1);
-    c.fillStyle = y - peak < 6 ? '#4a3434' : '#3a2828'; c.fillRect(Math.round(128 - w), y, Math.round(w * 2), 1);
-    c.fillStyle = '#2a1c1c'; c.fillRect(Math.round(128), y, Math.round(w), 1);
+/* a volcano behind the court: it shakes and spits lava while it's awake, and shows how many slams it still needs */
+function drawVolcano(c, v, t, awake, slams){
+  var y, sx = awake ? Math.round(Math.sin(t * 50 + v.cx) * 1.5) : 0, sy = awake ? Math.round(Math.cos(t * 43 + v.cx) * 1) : 0;
+  for (y = v.peak; y < 80; y++){
+    var w = (y - v.peak) / (80 - v.peak) * v.half + v.top, yy = y + (y < 60 ? sy : 0), xx = v.cx + (y < 60 ? sx : 0);
+    c.fillStyle = y - v.peak < 8 ? '#4a3a3a' : (y - v.peak < 20 ? '#5a4838' : '#3a7a38'); c.fillRect(Math.round(xx - w), yy, Math.round(w * 2), 1);
+    c.fillStyle = y - v.peak < 20 ? '#3a2c2c' : '#2c6028'; c.fillRect(Math.round(xx), yy, Math.round(w), 1);
   }
-  // the crater glows
-  var pk = Math.round(peak);
-  c.fillStyle = glow ? (Math.floor(t * 8) % 2 ? '#f8d800' : '#f86018') : '#c84018'; c.fillRect(128 - top + 2, pk, top * 2 - 4, 2);
-  c.fillStyle = 'rgba(248,96,24,' + (0.25 + 0.15 * Math.sin(t * 6)).toFixed(2) + ')'; c.fillRect(128 - top - 4, pk - 6, top * 2 + 8, 8);
-  // lava running down the sides
-  if (lava > 0){
-    for (k = 0; k < 7; k++){
-      var sx = 128 - top + 4 + k * (top * 2 - 8) / 6, dir = sx < 128 ? -1 : 1, len = lava * (AL_SEA - peak);
-      for (var d = 0; d < len; d += 1){
-        var yy = pk + d, xx = sx + dir * d * (half - top) / (AL_SEA - peak) + Math.sin(d * 0.3 + k) * 1.2;
-        c.fillStyle = d > len - 3 ? '#f8d800' : (k % 2 ? '#f86018' : '#f83800'); c.fillRect(Math.round(xx), Math.round(yy), 2, 1);
-      }
+  var cx = v.cx + sx, pk = v.peak + sy;
+  c.fillStyle = awake ? (Math.floor(t * 8) % 2 ? '#f8d800' : '#f86018') : '#f87818'; c.fillRect(Math.round(cx - v.top + 1), pk, Math.round(v.top * 2 - 2), awake ? 2 : 1);
+  if (awake){
+    // lava running down its sides
+    c.fillStyle = 'rgba(248,96,24,' + (0.3 + 0.15 * Math.sin(t * 6)).toFixed(2) + ')'; c.fillRect(Math.round(cx - v.top - 4), pk - 6, v.top * 2 + 8, 7);
+    for (var k = 0; k < 4; k++){ var dir = k < 2 ? -1 : 1, len = 10 + ((t * 12 + k * 7) % 14); for (var d = 0; d < len; d++){ c.fillStyle = d > len - 3 ? '#f8d800' : '#f84818'; c.fillRect(Math.round(cx + dir * (1 + k % 2 * 2) + dir * d * 0.9), pk + d, 1, 1); } }
+    // how many slams it still needs
+    for (var n = 0; n < AL_SLAMS; n++){ c.fillStyle = '#000'; c.fillRect(Math.round(cx - 8 + n * 6), pk - 14, 5, 5); c.fillStyle = n < slams ? '#58f878' : '#f84818'; c.fillRect(Math.round(cx - 7 + n * 6), pk - 13, 3, 3); }
+  }
+}
+/* waves rolling in toward the shore and breaking into foam on the sand */
+function drawWaves(c, t){
+  for (var k = 0; k < 4; k++){
+    var u = (t * 0.22 + k / 4) % 1, y = Math.round(80 + u * 30), a = 0.25 + u * 0.6;
+    c.fillStyle = 'rgba(16,128,168,' + (0.25 + u * 0.35).toFixed(2) + ')'; c.fillRect(0, y + 1, W, 1 + Math.round(u * 2));
+    for (var x = 0; x < W; x += 2){
+      var gap = Math.sin(x * 0.07 + k * 2.1) + Math.sin(x * 0.023 + t * 0.4 + k);
+      if (gap < -0.6 + u * 0.4) continue;
+      c.fillStyle = 'rgba(255,255,255,' + a.toFixed(2) + ')'; c.fillRect(x, y, 2, 1);
+      if (u > 0.6 && (x + k * 3) % 10 < 3){ c.fillRect(x, y - 1, 1, 1); }
     }
+    // breaking on the beach
+    if (u > 0.88){ var f = (u - 0.88) / 0.12; c.fillStyle = 'rgba(255,255,255,' + (0.8 * (1 - f)).toFixed(2) + ')'; for (var fx = (k * 13) % 7; fx < W; fx += 7) c.fillRect(fx, AL_SEA - 2 + Math.round(f * 4), 4, 1); }
   }
 }
 
 function AlohaGame(){
   var G = newWorld(), p = newHero(60);
   G.hero = p; G.look = LOOK; G.left = AL_SECS; G.phase = 'story'; G.me = 0; G.them = 0; G.streak = 0;
-  G.bloom = 0; G.bloomT = rand(6, 9); G.blooming = false; G.lava = null;
-  G.nene = []; G.neneT = 4; G.seals = []; G.sealT = 8; G.surfers = [];
+  G.bloom = 0; G.bloomT = 0; G.blooming = false; G.vol = null; G.stomps = 0;
+  G.nene = []; G.neneT = 4; G.seals = []; G.sealT = 3; G.surfers = [];
   for (var si = 0; si < 3; si++) G.surfers.push({ x: rand(0, W), lane: si, sp: rand(14, 26) * (si % 2 ? -1 : 1), wipe: 0 });
   G.queue = []; G.step = null; G.ui = null; G.uiRev = 0; G.inStep = false;
   G.plats = [FLOOR_PLAT];
@@ -4781,10 +4768,8 @@ function AlohaGame(){
   function mkAi(name, x, look, k){ var h = newHero(x); h.face = -1; return { h: h, ball: mkBall(k, name), has: true, noBallT: 0, top: 17, name: name, look: look, meter: null, spot: null, hoop: 0, thinkT: 0, target: 0 }; }
   var kai = mkAi('KAI', 170, KAI_LOOK, 1), lei = mkAi('LEI', 205, LEI_LOOK, 2), AIS = [kai, lei];
   var ALL = [me, kai, lei], balls = ALL.map(function(o){ return o.ball; });
-  function geos(){ return [AL_TIKI, AL_PALM, AL_HIB]; }
-  function hibPts(){ return G.blooming ? 5 : 2; }
+  function geos(){ return [AL_TIKI, AL_PALM]; }
   function owner(b){ for (var i = 0; i < ALL.length; i++) if (ALL[i].ball === b) return ALL[i]; return me; }
-  G.hang = function(){ return false; };
 
   /* ---------- the story ---------- */
   function say(name, text){ return { say: name, text: text }; }
@@ -4813,15 +4798,15 @@ function AlohaGame(){
     say('KAI', 'ALOHA! WELCOME TO VOLCANO BEACH.'),
     say('LEI', 'YOU WANNA PLAY US? TWO AGAINST ONE, BRAH.'),
     say('YOU', 'BRING IT.'),
-    say('KAI', 'WATCH THE HIBISCUS HOOP. WHEN THE FLOWER BLOOMS, IT IS WORTH 5...'),
-    say('LEI', '...AND THE ISLAND MIGHT WAKE UP. 90 SECONDS. GO!'),
+    say('KAI', 'HOP ON THREE SEALS... GENTLY... AND THE HIBISCUS ON THE TIKI OPENS UP.'),
+    say('LEI', 'SCORE IN THE TIKI WHEN IT IS OPEN AND THE VOLCANOES WAKE UP. 90 SECONDS. GO!'),
     { fn: function(){ G.phase = 'play'; addCheer(G.pops, W / 2, 40, 'GAME ON!'); addPop(G.pops, W / 2, 56, 'YOU VS KAI + LEI', '#fcfcfc'); strum(); } }]);
 
   /* ---------- balls ---------- */
   function grab(O){ O.has = true; O.ball.free = false; O.ball.live = false; O.noBallT = 0; if (O === me) sfx.dribble(); }
   function shootBall(O, pw){
     var h = O.h, b = O.ball, v = 165 + pw * 105;
-    b.free = true; b.live = true; b.scored = false; b.noPick = 0.25; b.rest = 0; b.ret = false; b.shot = true; b.jump = !h.ground; b.age = 0; b.seal = null;
+    b.free = true; b.live = true; b.scored = false; b.noPick = 0.25; b.rest = 0; b.ret = false; b.shot = true; b.jump = !h.ground; b.age = 0; b.seal = null; b.two = false; b.assist = false;
     b.x = h.x + h.face * 2; b.y = h.y - O.top;
     b.vx = h.face * v * Math.cos(ANG); b.vy = -v * Math.sin(ANG);
     O.has = false; O.noBallT = 0;
@@ -4853,15 +4838,15 @@ function AlohaGame(){
     else { G.them += pts; addPop(G.pops, x, y, O.name + ' +' + pts, O === kai ? '#58d8a0' : '#f878b8'); }
   }
   function made(b, g){
-    var cx = (g.rl + g.rr) / 2, pts = g.kind === 'hib' ? hibPts() : g.pts, O = owner(b);
+    var cx = (g.rl + g.rr) / 2, O = owner(b), pts = b.two ? 2 : (g.kind === 'tiki' && G.blooming && O === me ? 5 : g.pts);
     b.scored = true; b.shot = false; b.ret = true; b.vx *= 0.3; g.netT = 0.5;
     burst(G.parts, cx, g.y + 4, 14, ['#f8d800', '#fcfcfc', '#f878b8'], 60, 40, 0.8);
     sfx.swish();
     if (O === me && b.jump) pts += 1;
     credit(b, pts, cx, g.y + 18, b.assist ? 'SEAL ASSIST!' : (O === me && b.jump ? 'JUMP SHOT' : ''));
     if (O === me){ G.streak++; addCheer(G.pops, W / 2, 34); }
-    // the blooming hibiscus wakes the island
-    if (g.kind === 'hib' && G.blooming && O === me && !G.lava) startVolcano();
+    // scoring in the tiki while the hibiscus is open wakes the volcanoes
+    if (g.kind === 'tiki' && G.blooming && O === me && !G.vol) wakeVolcanoes();
   }
   function stepBall(b, h, gs){
     var py = b.y, i;
@@ -4880,11 +4865,6 @@ function AlohaGame(){
       });
       if (g.side > 0 && b.y > g.y - 20 - BR && b.y < g.y + 6 + BR && b.x + BR > g.bx && b.x < g.bx + 2 && b.vx > 0){ b.x = g.bx - BR; b.vx = -b.vx * 0.55; sfx.board(); }
       if (g.side < 0 && b.y > g.y - 20 - BR && b.y < g.y + 6 + BR && b.x - BR < g.bx + 3 && b.x > g.bx + 1 && b.vx < 0){ b.x = g.bx + 3 + BR; b.vx = -b.vx * 0.55; sfx.board(); }
-    }
-    // the magic volcano: a ball dropping into the crater sets it off too
-    if (G.lava && G.lava.ph === 'awake' && owner(b) === me && b.live && b.vy > 0){
-      var pk = AL_SEA - 80;
-      if (py < pk && b.y >= pk && Math.abs(b.x - 128) < 16){ erupt(); b.live = false; b.vy = -40; }
     }
     if (b.live){
       // bonk a nene
@@ -4923,19 +4903,32 @@ function AlohaGame(){
   /* ---------- seals: they waddle onto the court and play with the ball ---------- */
   function stepSeals(dt){
     G.sealT -= dt;
-    if (G.sealT <= 0 && G.seals.length < 2 && G.phase === 'play' && !G.lava){
+    if (G.sealT <= 0 && G.seals.length < 3 && G.phase === 'play' && !G.vol){
       var dir = Math.random() < 0.5 ? 1 : -1;
       G.seals.push({ x: dir > 0 ? -10 : W + 10, dir: dir, st: 'walk', t: 0, f: 0, ball: null, barkT: rand(1, 3) });
-      G.sealT = rand(10, 16);
+      G.sealT = rand(5, 8);
     }
     for (var i = G.seals.length - 1; i >= 0; i--){
       var s = G.seals[i];
       s.t += dt; s.f += dt * 6;
-      if (s.st === 'walk'){
-        s.x += s.dir * 14 * dt;
+      if (s.st === 'walk' || s.st === 'scamper'){
+        // hop on a seal: it isn't hurt, it just scampers off to the other side of the court
+        if (!p.ground && p.vy > 0 && Math.abs(p.x - s.x) < 10 && p.y > FLOOR - 11 && p.y < FLOOR - 2 && s.st === 'walk'){
+          p.vy = -200; p.ground = null; p.air2 = true; p.jumpHeld = true;
+          s.st = 'scamper'; s.dir = s.x < W / 2 ? 1 : -1; s.goal = s.dir > 0 ? rand(W - 60, W - 30) : rand(30, 60);
+          tone(700, 0.06, 'square', 0.04, 300); tone(900, 0.06, 'square', 0.04, 300, 0.07);
+          burst(G.parts, s.x, FLOOR - 6, 8, ['#fcfcfc', '#9aa4b0'], 30, 40, 0.4);
+          if (!G.blooming && !G.vol){
+            G.stomps++;
+            if (G.stomps >= AL_STOMPS){ G.stomps = 0; G.blooming = true; G.bloomT = 15; addCheer(G.pops, W / 2, 34, 'THE HIBISCUS OPENS!'); addPop(G.pops, W / 2, 50, 'SCORE IN THE TIKI HOOP!', '#f878b8'); strum(); }
+            else addPop(G.pops, s.x, FLOOR - 22, 'BOING! SEALS ' + G.stomps + '/' + AL_STOMPS, '#fcfc78');
+          } else addPop(G.pops, s.x, FLOOR - 22, 'BOING!', '#fcfcfc');
+        }
+        if (s.st === 'scamper'){ s.x += s.dir * 75 * dt; s.f += dt * 10; if ((s.dir > 0 && s.x >= s.goal) || (s.dir < 0 && s.x <= s.goal)){ s.st = 'walk'; } }
+        else s.x += s.dir * 14 * dt;
         if ((s.barkT -= dt) <= 0){ s.barkT = rand(2, 4); tone(280, 0.07, 'square', 0.03); tone(330, 0.07, 'square', 0.03, 0, 0.09); }
         // bump into one and it nudges you
-        if (p.ground && Math.abs(p.x - s.x) < 9){ p.x += p.x < s.x ? -1.5 : 1.5; if (Math.random() < dt * 2) addPop(G.pops, s.x, FLOOR - 22, 'ARF!', '#fcfcfc'); }
+        if (s.st === 'walk' && p.ground && Math.abs(p.x - s.x) < 9){ p.x += p.x < s.x ? -1.5 : 1.5; if (Math.random() < dt * 2) addPop(G.pops, s.x, FLOOR - 22, 'ARF!', '#fcfcfc'); }
         if (s.x < -16 || s.x > W + 16) G.seals.splice(i, 1);
       } else if (s.st === 'nose'){
         // balancing the ball on its nose
@@ -4980,7 +4973,21 @@ function AlohaGame(){
   /* ---------- Kai and Lei ---------- */
   function think(O, dt){
     var h = O.h, mv = 0;
-    if (G.lava){ h.face = 128 > h.x ? 1 : -1; O.meter = null; return 0; }   // everyone stops to watch the volcano
+    if (G.vol){
+      // while the volcanoes are awake they shoot nonstop, 2 points a shot, until you calm them down
+      O.meter = null; O.spot = null;
+      if (!O.has && (O.ball.scored || !O.ball.live)) grab(O);
+      O.rapidT = (O.rapidT || 0) - dt;
+      if (O.has && O.rapidT <= 0){
+        var gg = Math.random() < 0.5 ? AL_TIKI : AL_PALM, b0 = O.ball;
+        h.face = gg.cx > h.x ? 1 : -1;
+        shootBall(O, 0.5);
+        var tx = (gg.rl + gg.rr) / 2, rise = b0.y - gg.y, T = Math.max(0.7, Math.sqrt(2 * Math.max(0, rise) / BALL_G) * 1.25 + 0.15) + Math.abs(tx - b0.x) / 500;
+        b0.vx = (tx - b0.x) / T; b0.vy = -rise / T - 0.5 * BALL_G * T; b0.two = true;
+        O.rapidT = 2.2;
+      }
+      return 0;
+    }
     if (!O.has){
       var b = O.ball;
       O.spot = null;
@@ -4989,7 +4996,7 @@ function AlohaGame(){
       O.meter.p += dt / 1.1;
       if (O.meter.p >= O.target) shootBall(O, O.meter.p);
     } else if (O.spot == null){
-      var r = Math.random(), g = G.blooming ? (r < 0.5 ? AL_HIB : (r < 0.75 ? AL_PALM : AL_TIKI)) : (r < 0.4 ? AL_TIKI : (r < 0.75 ? AL_PALM : AL_HIB));
+      var g = Math.random() < 0.5 ? AL_TIKI : AL_PALM;
       O.hoop = g;
       for (var tries = 0; tries < 24 && O.spot == null; tries++){
         var sx = clamp(g.cx + (g.side ? -g.side : (Math.random() < 0.5 ? -1 : 1)) * (40 + tries * 5 + rand(0, 8)), 14, W - 14), sf = g.cx > sx ? 1 : -1;
@@ -5011,69 +5018,78 @@ function AlohaGame(){
     return mv;
   }
 
-  /* ---------- the volcano rises, erupts, and sinks back into the sea ---------- */
-  function startVolcano(){
-    G.lava = { ph: 'rise', t: 0, grow: 0, flow: 0, left: AL_MAGIC_SECS };
-    G.magic = { left: 0 };                                                   // unlimited jumps while the island is awake
-    G.blooming = false; G.bloom = 0; G.bloomT = rand(14, 18);
-    addCheer(G.pops, W / 2, 34, 'THE ISLAND WAKES UP!');
-    addPop(G.pops, W / 2, 50, 'A VOLCANO IS RISING FROM THE SEA...', '#f8a050');
-    tone(45, 2.5, 'sawtooth', 0.06, 10); hiss(2.5, 0.05, 150);
+  /* ---------- the volcanoes wake up: slam into their craters, back and forth, to calm them ---------- */
+  function wakeVolcanoes(){
+    G.vol = { slams: [0, 0], at: -1, fly: null, armed: false, t: 0 };
+    G.magic = { left: 0 };                                                   // unlimited jumps until they're calm
+    G.blooming = false;
+    addCheer(G.pops, W / 2, 34, 'THE VOLCANOES WAKE UP!');
+    addPop(G.pops, W / 2, 50, 'JUMP UP AND SLAM INTO A CRATER!', '#f8a050');
+    addPop(G.pops, W / 2, 60, 'HURRY: KAI AND LEI ARE SHOOTING NONSTOP!', '#fcfcfc');
+    tone(45, 2, 'sawtooth', 0.06, 10); hiss(2, 0.05, 150);
   }
-  function erupt(){
-    var L = G.lava;
-    L.ph = 'erupt'; L.t = 0;
-    G.score += AL_ERUPT_PTS; G.me += AL_ERUPT_PTS;
-    addCheer(G.pops, W / 2, 30, 'ERUPTION!!');
-    addPop(G.pops, W / 2, 48, '+' + AL_ERUPT_PTS, '#fcfc78', true);
-    G.shake = 2.2;
-    hiss(1.5, 0.12, 200); tone(40, 2, 'sawtooth', 0.08, -10); tone(80, 1.2, 'square', 0.05, -40, 0.1);
-    sfx.fanfare();
-  }
-  function stepVolcano(dt){
-    var L = G.lava, pk = AL_SEA - 80, i;
-    L.t += dt;
-    if (L.ph === 'rise'){
-      L.grow = Math.min(1, L.t / 2.4); G.shake = Math.max(G.shake, 0.25);
-      if (Math.random() < 0.6) G.parts.push({ x: 128 + rand(-70, 70) * L.grow, y: AL_SEA - 2, vx: rand(-5, 5), vy: -rand(10, 30), g: 0, life: 1, c: '#e8f0f8' });
-      if (L.grow >= 1){ L.ph = 'awake'; L.t = 0; addPop(G.pops, W / 2, 50, 'DUNK INTO THE CRATER!', '#f8d800', true); addPop(G.pops, W / 2, 62, 'JUMP AS MUCH AS YOU WANT', '#fcfcfc'); }
-    } else if (L.ph === 'awake'){
-      L.left -= dt;
-      if (Math.random() < dt * 6) G.parts.push({ x: 128 + rand(-14, 14), y: pk, vx: rand(-10, 10), vy: -rand(20, 40), g: 60, life: 0.8, c: pick(['#f8d800', '#f86018']) });
-      // slam the ball into the crater
-      if (me.has && Math.abs(p.x - 128) < 16 && p.y > pk - 6 && p.y < pk + 18){
-        p.vx = 0; p.vy = -60; me.has = false; var b = me.ball; b.free = true; b.live = false; b.x = 128; b.y = pk + 4; b.vx = 0; b.vy = 40; b.noPick = 0.5;
-        erupt();
-      } else if (L.left <= 0){ L.ph = 'sink'; L.t = 0; addPop(G.pops, W / 2, 50, 'THE VOLCANO GOES BACK TO SLEEP', '#f8a050', true); }
-    } else if (L.ph === 'erupt'){
-      L.flow = Math.min(1, L.t / 1.6);
-      // lava fountains and lava bombs
-      for (i = 0; i < 6; i++) G.parts.push({ x: 128 + rand(-10, 10), y: pk, vx: rand(-90, 90), vy: -rand(80, 180), g: 220, life: rand(0.8, 1.6), c: pick(['#f8d800', '#f86018', '#f83800', '#fcfcfc']) });
-      if (Math.random() < dt * 5) G.parts.push({ x: 128 + rand(-30, 30), y: pk - rand(10, 30), vx: 0, vy: -12, g: 0, life: 1.4, c: '#606068' });
-      if (L.t > 3){ L.ph = 'sink'; L.t = 0; tone(50, 2.5, 'sawtooth', 0.05, -15); }
-    } else if (L.ph === 'sink'){
-      // it rumbles back down into the ocean in clouds of steam
-      L.grow = Math.max(0, 1 - L.t / 2.5); G.shake = Math.max(G.shake, 0.2);
-      for (i = 0; i < 3; i++) G.parts.push({ x: 128 + rand(-80, 80) * L.grow, y: AL_SEA - rand(0, 6), vx: rand(-8, 8), vy: -rand(15, 40), g: 0, life: 1.2, c: pick(['#e8f0f8', '#fcfcfc', '#c8d0d8']) });
-      if (L.grow <= 0){ G.lava = null; G.magic = null; addPop(G.pops, W / 2, 50, 'BACK TO THE BEACH!', '#58d8f8', true); }
+  function volSlam(i){
+    var V = G.vol, v = AL_VOLC[i];
+    V.at = i; V.fly = null; V.t = 0; V.armed = false;
+    V.slams[i]++;
+    p.x = v.cx; p.y = v.peak + 15; p.vx = 0; p.vy = 0; p.ground = null; G.meter = null;
+    G.score += AL_SLAM_PTS; G.me += AL_SLAM_PTS;
+    addPop(G.pops, v.cx, v.peak - 20, 'SLAM! +' + AL_SLAM_PTS, '#fcfc78');
+    for (var k = 0; k < 20; k++) G.parts.push({ x: v.cx + rand(-6, 6), y: v.peak, vx: rand(-60, 60), vy: -rand(40, 120), g: 200, life: rand(0.5, 1.1), c: pick(['#f8d800', '#f86018', '#e8f0f8']) });
+    G.shake = 0.4;
+    sfx.swish(); tone(60, 0.4, 'sawtooth', 0.06, -20); hiss(0.4, 0.06, 600);
+    if (V.slams[0] >= AL_SLAMS && V.slams[1] >= AL_SLAMS){
+      G.vol = null; G.magic = null; p.vy = -60;
+      addCheer(G.pops, W / 2, 34, 'THE VOLCANOES CALM DOWN!');
+      addPop(G.pops, W / 2, 50, 'BACK TO THE BEACH!', '#58d8f8', true);
+      fireworks(G.parts, 3); sfx.fanfare();
     }
   }
+  function stepVolcanoes(dt){
+    var V = G.vol, i;
+    V.t += dt;
+    // both volcanoes spit lava while they're awake
+    for (i = 0; i < 2; i++){ var v = AL_VOLC[i]; if (V.slams[i] < AL_SLAMS && Math.random() < dt * 8) G.parts.push({ x: v.cx + rand(-3, 3), y: v.peak, vx: rand(-30, 30), vy: -rand(40, 90), g: 160, life: rand(0.6, 1.2), c: pick(['#f8d800', '#f86018', '#f83800']) }); }
+    G.shake = Math.max(G.shake, 0.08);
+    if (V.fly){
+      // the turbo jump across to the other volcano
+      var F = V.fly, k = Math.min(1, V.t / 0.55), e = k * k * (3 - 2 * k), to = AL_VOLC[F.to];
+      p.x = F.x0 + (to.cx - F.x0) * e; p.y = F.y0 + (to.peak + 15 - F.y0) * e - Math.sin(Math.PI * k) * 26;
+      p.vx = 0; p.vy = 0; p.face = to.cx > F.x0 ? 1 : -1; p.flipT = 0.3 * (1 - k);
+      burst(G.parts, p.x, p.y - 7, 2, ['#f8d800', '#f86018', '#fcfcfc'], 12, 0, 0.5);
+      if (k >= 1) volSlam(F.to);
+      return;
+    }
+    if (V.at >= 0){
+      // hanging on the crater: press toward the other volcano for the turbo jump
+      var at = AL_VOLC[V.at], other = 1 - V.at, want = AL_VOLC[other].cx > at.cx ? 1 : -1;
+      p.x = at.cx; p.y = at.peak + 15; p.vx = 0; p.vy = 0;
+      if (!inp.l && !inp.r) V.armed = true;
+      if (V.armed && ((want < 0 && inp.l) || (want > 0 && inp.r)) && V.slams[other] < AL_SLAMS){
+        V.fly = { to: other, x0: p.x, y0: p.y }; V.t = 0;
+        tone(300, 0.4, 'square', 0.05, 900); hiss(0.3, 0.05, 2500);
+      }
+      return;
+    }
+    // jump up to either crater with the ball for the first slam
+    for (i = 0; i < 2; i++){
+      var vv = AL_VOLC[i];
+      if (me.has && Math.abs(p.x - vv.cx) < 10 && p.y > vv.peak - 6 && p.y < vv.peak + 18){ volSlam(i); return; }
+    }
+  }
+  G.hang = function(){ return !!(G.vol && (G.vol.at >= 0 || G.vol.fly)); };
 
   G.update = function(dt){
     var i, gs = geos();
     G.t += dt; G.rimSnd -= dt; G.shake = Math.max(0, G.shake - dt);
-    [AL_TIKI, AL_PALM, AL_HIB].forEach(function(g){ g.netT = Math.max(0, (g.netT || 0) - dt); });
+    [AL_TIKI, AL_PALM].forEach(function(g){ g.netT = Math.max(0, (g.netT || 0) - dt); });
     var s = G.step;
     if (s){
       if (s.say && G.ui) G.ui.shown += dt * 45;
       else if (s.wait){ s.t -= dt; if (s.t <= 0) nextStep(); }
     }
-    // the hibiscus buds, blooms, and closes again
-    if (!G.lava){
-      G.bloomT -= dt;
-      if (!G.blooming && G.bloomT <= 0){ G.blooming = true; G.bloomT = 7; addPop(G.pops, AL_HIB.cx, AL_HIB.y - 34, 'THE HIBISCUS IS BLOOMING!', '#f878b8'); strum(); }
-      else if (G.blooming && G.bloomT <= 0){ G.blooming = false; G.bloomT = rand(10, 14); }
-    }
+    // once open, the hibiscus stays open for a while before it closes up again
+    if (G.blooming && !G.vol && G.phase === 'play' && (G.bloomT -= dt) <= 0){ G.blooming = false; addPop(G.pops, W / 2, 40, 'THE HIBISCUS CLOSED', '#f878b8'); }
     G.bloom += ((G.blooming ? 1 : 0) - G.bloom) * Math.min(1, dt * 3);
     var play = G.phase === 'play';
     if (play){
@@ -5081,19 +5097,19 @@ function AlohaGame(){
       var mv = (G.meter && p.ground) ? 0 : (inp.l ? -1 : (inp.r ? 1 : 0));
       if (G.meter && p.ground && (inp.l || inp.r)) p.face = inp.l ? -1 : 1;
       p.jumpHeld = inp.a || inp.u;
-      stepHero(G, p, dt, mv);
+      if (!G.hang()) stepHero(G, p, dt, mv);
       if (G.meter){
         if (!me.has) G.meter = null;
         else { G.meter.p += G.meter.dir * dt / (p.ground ? 1.4 : 0.55); if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; } }
       }
       AIS.forEach(function(O){ stepHero(G, O.h, dt, think(O, dt)); });
-      ALL.forEach(function(O){ if (O.has) holdBall(O, dt, O === me ? !!G.meter : !!O.meter); else looseBall(O, dt); });
+      ALL.forEach(function(O){ if (O.has) holdBall(O, dt, O === me ? (!!G.meter || G.hang()) : !!O.meter); else looseBall(O, dt); });
       for (i = 0; i < balls.length; i++){
         var b = balls[i];
         b.noPick = Math.max(0, b.noPick - dt);
         if (b.free) for (var k = 0; k < 3; k++) stepBall(b, dt / 3, gs);
       }
-      if (G.lava) stepVolcano(dt);
+      if (G.vol) stepVolcanoes(dt);
       if (G.left <= 0 && !G.done) endGame();
     } else ALL.forEach(function(O){ if (O.has) holdBall(O, dt, false); });
     stepSeals(dt); stepNene(dt);
@@ -5102,7 +5118,7 @@ function AlohaGame(){
   };
   function endGame(){
     G.left = 0; G.meter = null; G.phase = 'story';
-    if (G.lava){ G.lava.ph = 'sink'; G.lava.t = 0; }
+    G.vol = null; G.magic = null;
     var win = G.me > G.them;
     if (win){ G.score += 10; addPop(G.pops, W / 2, 56, '+10 YOU BEAT BOTH OF THEM', '#58f878', true); }
     run([{ wait: 1.6 }].concat(win ? [
@@ -5115,16 +5131,15 @@ function AlohaGame(){
 
   function drawLei(c, x, y){ var cols = ['#f878b8', '#f8d800', '#fcfcfc', '#f87800']; for (var k = 0; k < 4; k++){ c.fillStyle = cols[k]; c.fillRect(Math.round(x) - 2 + k, Math.round(y) - 9 + (k === 1 || k === 2 ? 1 : 0), 1, 1); } }
   G.draw = function(v){
-    var c = v.c, t = G.t, i, L = G.lava;
+    var c = v.c, t = G.t, i, V = G.vol;
     gameXf(v);
     c.drawImage(alohaBg(), 0, 0);
+    drawVolcano(c, AL_VOLC[0], t, !!V && V.slams[0] < AL_SLAMS, V ? V.slams[0] : 0);
+    drawVolcano(c, AL_VOLC[1], t, !!V && V.slams[1] < AL_SLAMS, V ? V.slams[1] : 0);
     // smoke from the big volcanoes
     for (i = 0; i < 5; i++){ var sy = 20 - ((t * 6 + i * 7) % 30), sx = 64 + Math.sin(t + i) * 3 + (20 - sy) * 0.4; c.fillStyle = 'rgba(120,110,110,' + (0.35 - (20 - sy) / 90).toFixed(2) + ')'; c.beginPath(); c.arc(sx, sy, 3 + (20 - sy) * 0.2, 0, Math.PI * 2); c.fill(); }
     // waves rolling in, and surfers riding them
-    for (i = 0; i < 3; i++){
-      var wy = 86 + i * 9, off = (t * (8 + i * 4)) % 32;
-      c.fillStyle = 'rgba(255,255,255,.7)'; for (var wx = -32 + off; wx < W; wx += 32) c.fillRect(Math.round(wx), wy, 12, 1);
-    }
+    drawWaves(c, t);
     G.surfers.forEach(function(sf){
       var y = 86 + sf.lane * 9 - 1 + Math.round(Math.sin(t * 3 + sf.lane) * 1), x = Math.round(sf.x), f = sf.sp > 0 ? 1 : -1;
       if (sf.wipe > 0){ c.fillStyle = 'rgba(255,255,255,.9)'; for (var k = 0; k < 6; k++) c.fillRect(x + Math.round(rand(-5, 5)), y - Math.round(rand(0, 6)), 1, 1); return; }
@@ -5132,22 +5147,22 @@ function AlohaGame(){
       c.fillStyle = '#000'; c.fillRect(x - 1, y - 7, 3, 7); c.fillStyle = '#c88850'; c.fillRect(x, y - 7, 1, 2); c.fillStyle = ['#2858f0', '#d82800', '#202020'][sf.lane]; c.fillRect(x, y - 5, 1, 3);
       c.fillStyle = '#c88850'; c.fillRect(x - f * 2, y - 5, 1, 1); c.fillRect(x + f * 2, y - 6, 1, 1);
     });
-    if (L) drawMagicVolcano(c, L.grow, L.ph === 'erupt' || L.ph === 'sink' ? Math.max(L.flow, L.ph === 'sink' ? 1 : 0) : 0, t, L.ph === 'awake');
     drawTiki(c, AL_TIKI, AL_TIKI.netT || 0);
+    drawHibiscus(c, 12, 42, t, G.bloom);
     drawAlohaPalm(c, AL_PALM, t, AL_PALM.netT || 0);
-    drawHibiscus(c, AL_HIB, t, AL_HIB.netT || 0, G.bloom);
     for (i = 0; i < G.nene.length; i++){ var n = G.nene[i], fr = NENE_SPR[Math.floor(n.f) % 2]; c.drawImage(n.dir > 0 ? fr.r : fr.l, Math.round(n.x - 7), Math.round(n.y)); }
-    for (i = 0; i < G.seals.length; i++){ var sl = G.seals[i], sf2 = SEAL_SPR[sl.st === 'walk' && Math.floor(sl.f) % 2 ? 1 : 0]; c.drawImage(sl.dir > 0 ? sf2.r : sf2.l, Math.round(sl.x) - 8, FLOOR - 8); }
+    for (i = 0; i < G.seals.length; i++){ var sl = G.seals[i], sf2 = SEAL_SPR[sl.st !== 'nose' && Math.floor(sl.f) % 2 ? 1 : 0]; c.drawImage(sl.dir > 0 ? sf2.r : sf2.l, Math.round(sl.x) - 8, FLOOR - 8); }
     AIS.forEach(function(O){ var h = O.h; drawAvatar(c, O.look, h.x, h.y, h.face, legFrame(!h.ground, h.vx, h.anim), !!O.meter || !h.ground, 0); drawLei(c, h.x, h.y); if (O.meter) drawMeter(c, h.x, h.y, O.meter.p); });
     drawHero(c, G.look, p, (me.has && (!!G.meter || !p.ground)));
     if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
     for (i = 0; i < balls.length; i++) if (balls[i].x > -10) drawBall(c, balls[i].x, balls[i].y, balls[i].rot, balls[i].k);
     drawParts(c, G.parts);
-    if (L && L.ph === 'erupt' && L.t < 0.5){ c.fillStyle = 'rgba(248,120,40,' + (0.4 * (1 - L.t / 0.5)).toFixed(2) + ')'; c.fillRect(0, 0, W, H); }
-    vText(v, '2', AL_TIKI.cx, AL_TIKI.y + 18, '#fcfcfc', nameSize(v));
+    vText(v, G.blooming ? '5 + VOLCANOES!' : '2', AL_TIKI.cx + (G.blooming ? 14 : 0), AL_TIKI.y + 18, G.blooming ? '#f878b8' : '#fcfcfc', nameSize(v));
     vText(v, '3', AL_PALM.cx, AL_PALM.y + 18, '#fcfcfc', nameSize(v));
-    vText(v, G.blooming ? '5 + MAGIC!' : '2', AL_HIB.cx, AL_HIB.y + 18, G.blooming ? '#f878b8' : '#fcfcfc', nameSize(v));
-    if (L && L.ph === 'awake') vText(v, 'DUNK IT! ' + Math.ceil(L.left), W / 2, AL_SEA - 92, '#f8d800', nameSize(v));
+    if (V && V.at >= 0 && !V.fly){
+      var at2 = AL_VOLC[V.at], want2 = AL_VOLC[1 - V.at].cx > at2.cx ? 1 : -1, col2 = Math.floor(t * 6) % 2 ? '#f8d800' : '#fcfcfc';
+      vText(v, want2 < 0 ? '<<< PRESS LEFT!' : 'PRESS RIGHT! >>>', clamp(at2.cx + want2 * 40, 50, W - 50), at2.peak + 2, col2, nameSize(v));
+    }
     c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(W / 2 - 50, 2, 100, 12);
     vText(v, 'YOU ' + G.me + '  -  ' + G.them + ' KAI+LEI', W / 2, 8, '#fcfcfc', nameSize(v));
     vText(v, 'KAI', kai.h.x, Math.min(H - 5, kai.h.y + 6), '#58d8a0', Math.round(nameSize(v) * 0.8));
@@ -5165,10 +5180,10 @@ function AlohaGame(){
   };
   G.release = function(k){ if (k === 'shoot' && G.meter && me.has) shootBall(me, G.meter.p); };
   G.hud = function(){
-    var L = G.lava;
-    return { balls: -1, info: L ? (L.ph === 'awake' ? 'DUNK THE VOLCANO! ' + Math.ceil(L.left) : 'VOLCANO!') : (G.blooming ? 'HIBISCUS BLOOMING!' : 'WATCH THE HIBISCUS'), time: G.phase === 'play' ? fmt(G.left) : '' };
+    var V = G.vol;
+    return { balls: -1, info: V ? 'CALM THE VOLCANOES ' + (V.slams[0] + V.slams[1]) + '/' + (AL_SLAMS * 2) : (G.blooming ? 'HIBISCUS OPEN: SCORE IN THE TIKI!' : 'HOP ON SEALS ' + G.stomps + '/' + AL_STOMPS), time: G.phase === 'play' ? fmt(G.left) : '' };
   };
-  G.startVolcano = startVolcano; G.skipIntro = function(){ G.queue = []; G.step = null; G.ui = null; G.uiRev++; G.phase = 'play'; };   // handy for testing
+  G.wakeVolcanoes = wakeVolcanoes; G.skipIntro = function(){ G.queue = []; G.step = null; G.ui = null; G.uiRev++; G.phase = 'play'; };   // handy for testing
   G.ais = AIS; G.balls = balls;
   return G;
 }
@@ -5191,8 +5206,8 @@ var BOARDS = [
     how: 'FIRST TO 15. 2S AND 3S. 10 SECOND SHOT CLOCK.<br>&#9664; &#9654; &#9650; &#9660; RUN THE WHOLE COURT<br>A (Z KEY) JUMPS &nbsp; B (SPACE) SHOOTS: HOLD AND LET GO, IN THE AIR FOR A JUMP SHOT, CLOSE = LAYUP<br>C (X KEY) PASSES TO DRE, OR CALLS FOR THE BALL &nbsp; ON DEFENSE: B STEALS, A JUMPS TO BLOCK' },
   { id: 'cyber', name: 'CYBER COURT', sub: 'A NEON MACHINE WORLD: BEAT BOLT THE ROBOT AND DODGE THE DRONE BIRDS', make: CyberGame,
     how: 'BEAT BOLT IN 2 MINUTES. MAINFRAME 3, HOLO-HOOPS 2 (THEY WARP WHEN SOMEONE SCORES)<br>RIDE THE HOVER PADS. BOLT OVERHEATS AFTER 3 SHOTS: THAT IS YOUR CHANCE<br>SHOOT DOWN DRONE BIRDS +3. RED-EYED DRONES ZAP: MOVE OFF THE RED LASER!<br>5 BASKETS OR DRONES = OVERCLOCK: SLOW TIME, LOCK-ON SHOTS, x2, AND THE UPLOAD DUNK' },
-  { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS, NENE, SURFERS, AND A HIBISCUS HOOP THAT WAKES THE VOLCANO', make: AlohaGame,
-    how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3, HIBISCUS HOOP 2<br>WHEN THE HIBISCUS BLOOMS IT IS WORTH 5, AND IT WAKES THE ISLAND:<br>A VOLCANO RISES FROM THE SEA. DUNK INTO THE CRATER FOR AN ERUPTION (+20)<br>SEALS PLAY WITH LOOSE SHOTS. BONK A NENE +1' }
+  { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
+    how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
