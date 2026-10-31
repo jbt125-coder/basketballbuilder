@@ -23,7 +23,7 @@ button { font-family: inherit; }
   text-shadow: 3px 3px 0 #d82800, 6px 6px 0 #000; }
 .sub { color: #58d8c0; font-size: 10px; margin: 4px 0 22px; text-align: center; line-height: 1.6; }
 .boards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1060px; }
-.board { flex: 1 1 220px; max-width: 250px; background: #26185a; border: 3px solid #000; box-shadow: inset 0 0 0 2px #3d2a80; border-radius: 12px;
+.board { flex: 1 1 190px; max-width: 250px; background: #26185a; border: 3px solid #000; box-shadow: inset 0 0 0 2px #3d2a80; border-radius: 12px;
   padding: 10px; cursor: pointer; text-align: center; color: inherit; }
 .board.sel { box-shadow: inset 0 0 0 2px #3d2a80, 0 0 0 4px #f8d800; }
 .board canvas { width: 100%; aspect-ratio: 16 / 9; image-rendering: pixelated; display: block; border: 3px solid #000; border-radius: 6px; background: #000; }
@@ -150,6 +150,7 @@ body.touch:not(.land) #pad { flex: 1; }
    Board 2: the gym (the Teacherbase Hoops shot, one hoop on the right)
    Board 3: hoops at the beach (Palm Court Hoops from QuizQuest)
    Board 4: in the clouds, wearing the Air Jordann's
+   Board 5: frozen hoops (hanging hoops, a polar bear, a snowman and penguins)
 ============================================================ */
 
 /* ============================================================
@@ -517,9 +518,16 @@ function findPlat(plats, id){ for (var i = 0; i < plats.length; i++) if (plats[i
 function stepHero(G, p, dt, mv){
   p.flipT = Math.max(0, p.flipT - dt); p.drop = Math.max(0, p.drop - dt);
   p.inv = Math.max(0, p.inv - dt); p.hurtT = Math.max(0, p.hurtT - dt);
-  if (p.hurtT <= 0){ p.vx = mv * RUN; if (mv) p.face = mv > 0 ? 1 : -1; }
+  if (p.hurtT <= 0){
+    // on ice you speed up slowly and keep sliding after you let go
+    if (G.ice && !p.grip){ p.vx += (mv * RUN - p.vx) * Math.min(1, dt * (mv ? 2.4 : 2)); if (!mv && Math.abs(p.vx) < 1) p.vx = 0; }
+    else p.vx = mv * RUN;
+    if (mv) p.face = mv > 0 ? 1 : -1;
+  }
+  p.mv = mv;
   if (p.ground && p.vx) p.anim += dt * 10;
   p.x = clamp(p.x + p.vx * dt, 4, W - 4);
+  if (G.ice && (p.x <= 4 || p.x >= W - 4)) p.vx = 0;
   if (p.ground){
     var g = findPlat(G.plats, p.ground);
     if (!g || p.x + 3 <= g.x1 || p.x - 3 >= g.x2){ p.ground = null; p.vy = 0; } else p.y = g.y;
@@ -569,7 +577,7 @@ function heroHit(p, x, y, hw, hh){ return Math.abs(p.x - x) < hw + 3 && p.y > y 
 function drawHero(c, look, p, arms){
   if (p.inv > 0 && Math.floor(p.inv * 14) % 2) return;
   var spin = p.flipT > 0 ? -p.face * (1 - p.flipT / 0.3) * Math.PI * 2 : 0;
-  drawAvatar(c, look, p.x, p.y, p.face, legFrame(!p.ground, p.vx, p.anim), arms, spin);
+  drawAvatar(c, look, p.x, p.y, p.face, legFrame(!p.ground, p.mv === undefined ? p.vx : p.mv, p.anim), arms, spin);
 }
 
 /* ============================================================
@@ -2336,6 +2344,599 @@ function StreetGame(){
 }
 
 /* ============================================================
+   BOARD 5: FROZEN HOOPS — hoops hanging on chains from an icicle ceiling, slippery ice,
+   a polar bear to beat, a snowman on defense, and penguins that belly-slide when you bonk them
+============================================================ */
+var ICE_CEIL = 10, ICE_SECS = 120, ICE_BONKS = 3, TEN_SHOT_GAP = 0.07, TURBO_PTS = 6, SHATTER_PTS = 25;
+var ICE_HOOPS = [
+  { x: 58, y: 92, pts: 2, ph: 0 },
+  { x: 128, y: 38, pts: 5, ph: 2.1 },
+  { x: 198, y: 70, pts: 3, ph: 4.2 }
+];
+// the three glass slam dunk hoops that show up in magic mode: top left, middle, top right
+var ICE_DUNKS = [{ x: 24, y: 30 }, { x: 128, y: 86 }, { x: 232, y: 30 }];
+var PENGUIN_HOMES = [12, 24, 92, 164, 232, 244];
+var SNOW_LINES = ['BRRR-JECTED!', 'ICE COLD D!', 'NOT IN MY IGLOO!', 'FROZEN OUT!'];
+
+function iceGeo(i, t){
+  var h = ICE_HOOPS[i], cx = h.x + Math.sin(t * 1.2 + h.ph) * 3, rl = Math.round(cx - RIM_W / 2);
+  return { i: i, cx: cx, rl: rl, rr: rl + RIM_W, y: h.y + Math.round(Math.sin(t * 0.9 + h.ph)), pts: h.pts };
+}
+/* where a shot crosses height ry on the way down, and the power that drops it on x = cx */
+function shotLandAt(x0, y0, face, pw, ry){
+  var v = 165 + pw * 105, vx = face * v * Math.cos(ANG), vy = -v * Math.sin(ANG), x = x0, y = y0, h = 1 / 240;
+  for (var n = 0; n < 2400; n++){
+    var py = y; vy += BALL_G * h; x += vx * h; y += vy * h;
+    if (vy > 0 && py < ry && y >= ry) return x;
+    if (y > FLOOR) return null;
+  }
+  return null;
+}
+function bestPowerAt(x0, y0, face, cx, ry){
+  var best = -1, be = 1e9;
+  for (var pw = 0; pw <= 1.0001; pw += 0.005){
+    var lx = shotLandAt(x0, y0, face, pw, ry);
+    if (lx == null) continue;
+    var e = Math.abs(lx - cx);
+    if (e < be){ be = e; best = pw; }
+  }
+  return be < 4 ? best : -1;
+}
+function outlined(img){
+  var c = document.createElement('canvas'); c.width = img.width + 2; c.height = img.height + 2;
+  var s = document.createElement('canvas'); s.width = img.width; s.height = img.height;
+  var sx = s.getContext('2d'); sx.drawImage(img, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#000'; sx.fillRect(0, 0, s.width, s.height);
+  var x = c.getContext('2d');
+  [[0, 1], [2, 1], [1, 0], [1, 2], [0, 0], [2, 0], [0, 2], [2, 2]].forEach(function(o){ x.drawImage(s, o[0], o[1]); });
+  x.drawImage(img, 1, 1);
+  return c;
+}
+/* the polar bear: big, white, with a red scarf */
+var BEAR_SPRITE = outlined(makeSpriteP([
+  '..ww......ww..', '.wggw....wggw.', '.wwwwwwwwwwww.', 'wwwwwwwwwwwwww', 'wwwkwwwwwwkwww', 'wwwwwwwwwwwwww',
+  '.wwwwwkkwwwww.', '..wwwwkkwwww..', '...wwwwwwww...', '..rrrrrrrrrr..', '.wwwwwwwwwwrr.', 'wwwwwggggwwwww',
+  'ww.wwggggww.ww', 'ww.wwwwwwww.ww', '...wwwwwwww...', '...www..www...', '..wwww..wwww..', '..gggg..gggg..'],
+  { w: '#f6f6f2', g: '#c8d0dc', k: '#101010', r: '#d82800' }));
+var PENGUIN_SPR = (function(){
+  var pal = { k: '#141824', w: '#fcfcfc', y: '#f8b000', e: '#fcfcfc' };
+  function pr(rows){ var a = makeSpriteP(rows, pal); return { r: a, l: flipC(a) }; }
+  return {
+    stand: pr(['..kkk..', '.kkekk.', '.kkkkky', '.kwwwk.', 'kkwwwkk', 'kkwwwkk', '.kwwwk.', '.kwwwk.', '..kkk..', '.yy.yy.']),
+    blink: pr(['..kkk..', '.kkkkk.', '.kkkkky', '.kwwwk.', 'kkwwwkk', 'kkwwwkk', '.kwwwk.', '.kwwwk.', '..kkk..', '.yy.yy.']),
+    slide: pr(['.kkkkkkk..', 'kkwwwwwkkk', 'kkwwwwwkeky', '.kkkkkkk..'])
+  };
+})();
+var ICE_BG = null;
+function iceBg(){
+  if (ICE_BG) return ICE_BG;
+  var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var c = cv.getContext('2d'), i, x, seed = 31;
+  function r(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  // night sky with the northern lights, seen through the mouth of the ice cave
+  var sky = ['#06102a', '#0a1838', '#0e2248', '#123058', '#164068', '#1c5078', '#246088', '#2e7098'], bh = 104 / sky.length;
+  for (i = 0; i < sky.length; i++){ c.fillStyle = sky[i]; c.fillRect(0, Math.floor(i * bh), W, Math.ceil(bh) + 1); }
+  c.fillStyle = '#fcfcfc';
+  for (i = 0; i < 50; i++){ c.globalAlpha = 0.3 + r() * 0.7; c.fillRect(Math.floor(r() * W), 12 + Math.floor(r() * 50), 1, 1); }
+  c.globalAlpha = 1;
+  [['#58f8a0', 26, 0.05], ['#b078ff', 40, 0.035]].forEach(function(band){
+    for (x = 0; x < W; x++){
+      var yc = band[1] + Math.sin(x * band[2]) * 8 + Math.sin(x * 0.013 + 1) * 5;
+      for (var k = 0; k < 18; k++){ c.fillStyle = band[0]; c.globalAlpha = 0.28 * (1 - k / 18); c.fillRect(x, Math.round(yc + k), 1, 1); }
+    }
+  });
+  c.globalAlpha = 1;
+  // icy mountains far away
+  [[-10, 104, 40, 66], [40, 104, 70, 74], [110, 104, 64, 60], [180, 104, 60, 70], [226, 104, 50, 78]].forEach(function(m){
+    var bx = m[0], by = m[1], w = m[2], top = m[3];
+    for (var yy = top; yy < by; yy++){
+      var half = (yy - top) / (by - top) * w / 2, cx = bx + w / 2;
+      c.fillStyle = yy - top < 6 ? '#f4faff' : '#8ab8d8'; c.fillRect(Math.round(cx - half), yy, Math.round(half * 2), 1);
+      c.fillStyle = '#6a98c0'; c.fillRect(Math.round(cx), yy, Math.round(half), 1);
+    }
+  });
+  // snow banks and an igloo
+  c.fillStyle = '#c8dcf0';
+  for (x = -10; x < W + 10; x += 22){ c.beginPath(); c.arc(x, 110, 12 + (x % 3) * 2, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = '#eef6fc'; c.fillRect(0, 106, W, 12);
+  c.fillStyle = '#000'; c.beginPath(); c.arc(214, 118, 15, Math.PI, 0); c.fill();
+  c.fillStyle = '#f4faff'; c.beginPath(); c.arc(214, 118, 14, Math.PI, 0); c.fill();
+  c.fillStyle = '#b8d0e8';
+  for (i = 0; i < 3; i++) c.fillRect(201, 108 + i * 4 - (i ? 0 : 0), 27, 1);
+  c.fillRect(207, 104, 1, 4); c.fillRect(220, 104, 1, 4); c.fillRect(213, 108, 1, 4); c.fillRect(205, 112, 1, 4); c.fillRect(222, 112, 1, 4);
+  c.fillStyle = '#0a1020'; c.fillRect(209, 111, 10, 7); c.fillRect(210, 110, 8, 1);
+  // the ice rink
+  c.fillStyle = '#000'; c.fillRect(0, 117, W, 1);
+  c.fillStyle = '#a8daf4'; c.fillRect(0, 118, W, FLOOR - 118);
+  c.fillStyle = '#d8f2ff'; for (i = 0; i < 26; i++){ var sx0 = Math.floor(r() * W), sy0 = 119 + Math.floor(r() * 12); for (var k2 = 0; k2 < 6; k2++) c.fillRect(sx0 + k2, sy0 - Math.floor(k2 / 3), 1, 1); }
+  c.fillStyle = '#88c4e4'; for (i = 0; i < 40; i++) c.fillRect(Math.floor(r() * W), 118 + Math.floor(r() * 14), 2, 1);
+  c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(0, 118, W, 1);
+  // snowy front edge
+  c.fillStyle = '#000'; c.fillRect(0, FLOOR, W, 1);
+  c.fillStyle = '#f4faff'; c.fillRect(0, FLOOR + 1, W, H - FLOOR - 1);
+  c.fillStyle = '#c8dcf0'; for (x = 0; x < W; x += 9) c.fillRect(x, FLOOR + 6 + (x % 4), 5, 2);
+  // the frozen ceiling and its icicles
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, ICE_CEIL + 1);
+  c.fillStyle = '#9cd4f0'; c.fillRect(0, 0, W, ICE_CEIL);
+  c.fillStyle = '#e0f6ff'; for (i = 0; i < 30; i++) c.fillRect(Math.floor(r() * W), Math.floor(r() * (ICE_CEIL - 2)), 3, 1);
+  for (x = 2; x < W; x += 5 + Math.floor(r() * 6)){
+    var len = 3 + Math.floor(r() * 12), w2 = 2 + Math.floor(r() * 2);
+    for (var yy2 = 0; yy2 < len; yy2++){
+      var ww = Math.max(1, Math.round(w2 * (1 - yy2 / len) * 2));
+      c.fillStyle = '#000'; c.fillRect(x - 1, ICE_CEIL + yy2, ww + 2, 1);
+      c.fillStyle = yy2 % 3 ? '#c8ecfc' : '#e8f8ff'; c.fillRect(x, ICE_CEIL + yy2, ww, 1);
+    }
+  }
+  ICE_BG = cv;
+  return cv;
+}
+function drawIceHoop(c, g, netT){
+  var ax = Math.round(g.cx), ay = ICE_CEIL + 1, k;
+  [g.rl + 1, g.rr - 1].forEach(function(ex){                           // two chains up to one hook in the ice
+    var n = Math.ceil(hyp(ax - ex, g.y - ay) / 2);
+    for (k = 0; k <= n; k++){
+      c.fillStyle = k % 2 ? '#d8e0ec' : '#6a7484';
+      c.fillRect(Math.round(ex + (ax - ex) * k / n), Math.round(g.y + (ay - g.y) * k / n), 1, 1);
+    }
+  });
+  c.fillStyle = '#000'; c.fillRect(ax - 2, ay - 1, 5, 4);
+  c.fillStyle = '#9aa0aa'; c.fillRect(ax - 1, ay, 3, 2);
+  drawNet(c, g.rl, g.rr, g.y, netT, 'rgba(252,252,252,.9)');
+  c.fillStyle = '#000'; c.fillRect(g.rl - 1, g.y - 1, RIM_W + 3, 4);
+  c.fillStyle = '#f87800'; c.fillRect(g.rl, g.y, RIM_W + 1, 2);
+  c.fillStyle = '#e8f8ff'; c.fillRect(g.rl + 2, g.y, 3, 1); c.fillRect(g.rl + 12, g.y, 2, 1);   // frost on the rim
+}
+function drawGlassHoop(c, d, cp, t, netT){
+  var x0 = d.x - 15, x1 = d.x + 15, y0 = d.y - 22, y1 = d.y + 1, rl = Math.round(d.x - RIM_W / 2), k;
+  c.fillStyle = 'rgba(200,120,255,' + (0.2 + 0.12 * Math.sin(t * 5)).toFixed(2) + ')'; c.fillRect(x0 - 3, y0 - 3, x1 - x0 + 6, y1 - y0 + 16);
+  c.fillStyle = '#000'; c.fillRect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2);
+  c.fillStyle = 'rgba(170,230,255,.6)'; c.fillRect(x0, y0, x1 - x0, y1 - y0);
+  c.fillStyle = 'rgba(255,255,255,.4)'; for (k = 0; k < 5; k++) c.fillRect(x0 + 3 + k, y0 + 2 + k, 2, 1);
+  c.strokeStyle = '#fcfcfc'; c.lineWidth = 1;
+  c.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1);
+  c.strokeRect(rl + 4.5, d.y - 10.5, RIM_W - 8, 9);
+  if (cp > 0){
+    c.beginPath();
+    for (k = 0; k < Math.ceil(cp * CRACKS.length); k++){ var sg = CRACKS[k]; c.moveTo(d.x + clamp(sg[0], -14, 14), d.y + sg[1]); c.lineTo(d.x + clamp(sg[2], -14, 14), d.y + sg[3]); }
+    c.stroke();
+  }
+  drawNet(c, rl, rl + RIM_W, d.y, netT, 'rgba(252,252,252,.9)');
+  c.fillStyle = '#000'; c.fillRect(rl - 1, d.y - 1, RIM_W + 3, 4);
+  c.fillStyle = MAGIC_COLS[Math.floor(t * 8) % MAGIC_COLS.length]; c.fillRect(rl, d.y, RIM_W + 1, 2);
+}
+function drawBlob(c, x, y, r){
+  c.fillStyle = '#000'; c.beginPath(); c.arc(x, y, r + 1, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#f4faff'; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#c8dcf0'; c.beginPath(); c.arc(x + r * 0.35, y + r * 0.35, r * 0.6, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#f4faff'; c.beginPath(); c.arc(x - r * 0.15, y - r * 0.15, r * 0.75, 0, Math.PI * 2); c.fill();
+}
+function drawSnowman(c, S, t){
+  var x = Math.round(S.x), y = FLOOR, f = S.face, k;
+  var shiver = S.shiver > 0 ? Math.round(Math.sin(t * 60)) : 0;
+  x += shiver;
+  // stick arms: down at his sides, or up high when he's guarding you
+  [-1, 1].forEach(function(sd){
+    var bx = x + sd * 5, by = y - 19, a = S.arms;
+    var ex = bx + sd * (11 - a * 3), ey = by + 2 - a * 16;
+    c.strokeStyle = '#000'; c.lineWidth = 2.2; c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey); c.stroke();
+    c.strokeStyle = '#8a5428'; c.lineWidth = 1; c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey);
+    c.moveTo(ex - sd * 1, ey + 1); c.lineTo(ex + sd * 2, ey - 2); c.moveTo(ex - sd * 1, ey + 1); c.lineTo(ex - sd * 1, ey - 3); c.stroke();
+  });
+  drawBlob(c, x, y - 7, 7);
+  drawBlob(c, x, y - 18, 5);
+  drawBlob(c, x, y - 27, 4);
+  c.fillStyle = '#202020'; c.fillRect(x, y - 19, 1, 1); c.fillRect(x, y - 16, 1, 1); c.fillRect(x, y - 9, 1, 1);
+  c.fillStyle = '#d82800'; c.fillRect(x - 4, y - 23, 9, 2); c.fillRect(x + (f > 0 ? -4 : 3), y - 22, 2, 4);
+  c.fillStyle = '#000'; c.fillRect(x - 1 + f, y - 29, 1, 1); c.fillRect(x + 1 + f, y - 29, 1, 1);
+  c.fillStyle = '#f87800'; c.fillRect(f > 0 ? x + 3 : x - 5, y - 27, 3, 1);
+  c.fillStyle = '#000'; c.fillRect(x - 5, y - 32, 11, 2); c.fillRect(x - 3, y - 38, 7, 6);
+  c.fillStyle = '#2a2a3a'; c.fillRect(x - 2, y - 37, 5, 4);
+  c.fillStyle = '#2858f0'; c.fillRect(x - 2, y - 34, 5, 1);
+}
+
+function IceGame(){
+  var G = newWorld(), p = newHero(60);
+  G.hero = p; G.look = LOOK; G.left = ICE_SECS; G.ice = true; G.me = 0; G.them = 0; G.streak = 0; G.bonks = 0;
+  G.mballs = []; G.netH = -1;
+  function mkBall(k, own){ return { k: k, own: own, x: -30, y: FLOOR - BR, vx: 0, vy: 0, rot: 0, free: false, live: false, noPick: 0, rest: 0 }; }
+  var me = { h: p, ball: mkBall(0, 'me'), has: true, noBallT: 0, top: 17 };
+  var B = { h: newHero(200), ball: mkBall(2, 'bear'), has: true, noBallT: 0, top: 21, meter: null, spot: null, hoop: 0, thinkT: 0, target: 0 };
+  B.h.face = -1; B.h.grip = true;                                      // polar bear claws grip the ice
+  var S = { x: 150, vx: 0, face: -1, mode: 'wander', modeT: 2, tx: 150, arms: 0, shiver: 0, hot: false };
+  var balls = [me.ball, B.ball];
+  G.pengs = PENGUIN_HOMES.map(function(x){ return { home: x, x: x, face: x < W / 2 ? 1 : -1, st: 'stand', vx: 0, t: 0, blinkT: rand(1, 4), anim: 0 }; });
+  G.hang = function(){ return !!(G.magic && G.magic.turbo); };
+
+  function geos(){ return [iceGeo(0, G.t), iceGeo(1, G.t), iceGeo(2, G.t)]; }
+  function facingHoop(){
+    var gs = geos(), best = null, bd = 1e9, i;
+    for (i = 0; i < 3; i++){ var dx = (gs[i].cx - p.x) * p.face; if (dx > 6 && dx < bd){ bd = dx; best = gs[i]; } }
+    if (!best) for (i = 0; i < 3; i++){ var d2 = Math.abs(gs[i].cx - p.x); if (d2 < bd){ bd = d2; best = gs[i]; } }
+    return best;
+  }
+  function gain(n){ G.score += n; G.me += n; }
+
+  /* ---------- balls: yours and the bear's ---------- */
+  function grab(O){ O.has = true; O.ball.free = false; O.ball.live = false; O.noBallT = 0; if (O === me) sfx.dribble(); }
+  function shootBall(O, pw){
+    var h = O.h, b = O.ball, v = 165 + pw * 105;
+    b.free = true; b.live = true; b.scored = false; b.noPick = 0.6; b.rest = 0; b.ret = false; b.shot = true; b.blocked = false; b.jump = !h.ground;
+    b.x = h.x + h.face * 2; b.y = h.y - O.top;
+    b.vx = h.face * v * Math.cos(ANG); b.vy = -v * Math.sin(ANG);
+    O.has = false; O.noBallT = 0;
+    if (O === me) G.meter = null; else O.meter = null;
+    sfx.dribble();
+  }
+  function holdBall(O, dt, up){
+    var h = O.h, b = O.ball, before = Math.floor(h.dp / Math.PI);
+    h.dp += dt * (h.vx ? 9 : 6);
+    if (up || !h.ground){ b.x = h.x + h.face * 2; b.y = h.y - O.top; return; }
+    if (O === me && Math.floor(h.dp / Math.PI) !== before) sfx.dribble();
+    b.x = h.x + h.face * (O === me ? 6 : 9); b.y = h.y - BR - Math.abs(Math.sin(h.dp)) * 8;
+    b.rot += dt * h.face * 4;
+  }
+  function looseBall(O, dt){
+    var h = O.h, b = O.ball;
+    O.noBallT += dt;
+    if (b.live) return;
+    if (h.ground && b.free && b.noPick <= 0 && Math.abs(b.vx) < 30 && Math.abs(b.vy) < 1 && Math.abs(b.x - h.x) < 9 && Math.abs(b.y + BR - h.y) < 4){ grab(O); return; }
+    if (O.noBallT > (O === me ? 3 : 2.5)){                                // a ball that slid away pops back to you
+      burst(G.parts, b.x, b.y, 8, ['#fcfcfc', '#a8daf4'], 40, 0, 0.4);
+      grab(O);
+      if (O === me) addPop(G.pops, p.x, p.y - 22, 'NEW BALL', '#fcfcfc');
+    }
+  }
+  function made(b, g){
+    var cx = (g.rl + g.rr) / 2;
+    b.scored = true; b.shot = false; b.ret = true; b.vx *= 0.3; G.netH = g.i; G.netT = 0.5;
+    burst(G.parts, cx, g.y + 4, 14, ['#f8d800', '#fcfcfc', '#58d8f8'], 60, 40, 0.8);
+    sfx.swish();
+    if (b.own === 'me'){
+      var pts = g.pts + (b.jump ? 1 : 0);
+      gain(pts); G.streak++;
+      addCheer(G.pops, W / 2, 30);
+      addPop(G.pops, cx, g.y + 18, '+' + pts + (b.jump ? ' JUMP SHOT' : ''), '#fcfc78');
+    } else {
+      G.them += g.pts;
+      addPop(G.pops, cx, g.y + 18, 'BEAR +' + g.pts, '#c8e0ff');
+      tone(110, 0.25, 'sawtooth', 0.04, -30);                            // a happy bear grunt
+    }
+  }
+  function bonk(pg, b){
+    pg.st = 'slide'; pg.vx = (b.vx >= 0 ? 1 : -1) * rand(90, 120); pg.face = pg.vx > 0 ? 1 : -1;
+    b.vx *= -0.4; b.vy = -Math.abs(b.vy) * 0.4 - 40;
+    burst(G.parts, pg.x, FLOOR - 4, 10, ['#fcfcfc', '#a8daf4', '#141824'], 40, 60, 0.6);
+    tone(1800, 0.08, 'square', 0.03, 400); tone(2200, 0.1, 'square', 0.03, 300, 0.1);
+    if (b.own !== 'me') return;
+    gain(2);
+    addPop(G.pops, pg.x, FLOOR - 20, '+2 PENGUIN!', '#fcfc78');
+    if (G.magic) return;
+    G.bonks++;
+    if (G.bonks >= ICE_BONKS) startMagic();
+    else addPop(G.pops, W / 2, 30, 'PENGUINS ' + G.bonks + '/' + ICE_BONKS, '#58d8f8');
+  }
+  function snowBlock(b){
+    b.blocked = true;
+    b.vx = -b.vx * 0.5; b.vy = -Math.abs(b.vy) * 0.3 - 30;
+    burst(G.parts, b.x, b.y, 16, ['#fcfcfc', '#d8f2ff'], 50, 80, 0.7);
+    addPop(G.pops, S.x, FLOOR - 44, pick(SNOW_LINES), '#d8f2ff');
+    hiss(0.2, 0.06, 1200); tone(180, 0.12, 'square', 0.04, -60);
+    if (G.streak >= 3) addPop(G.pops, p.x, p.y - 24, 'STREAK OVER', '#f86060');
+    G.streak = 0;
+  }
+  function stepBall(b, h, gs){
+    var py = b.y, i;
+    b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR;
+    for (i = 0; i < gs.length; i++){
+      var g = gs[i];
+      if (b.live && !b.scored && py < g.y && b.y >= g.y && b.x > g.rl && b.x < g.rr) made(b, g);
+      [g.rl, g.rr].forEach(function(px){
+        var dx = b.x - px, dy = b.y - g.y, d = hyp(dx, dy);
+        if (d < BR + 1 && d > 0){
+          var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny;
+          b.x = px + nx * (BR + 1); b.y = g.y + ny * (BR + 1);
+          if (vn < 0){ b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; } }
+        }
+      });
+    }
+    if (b.y < ICE_CEIL + BR + 3 && b.vy < 0){ b.y = ICE_CEIL + BR + 3; b.vy = -b.vy * 0.5; tone(2400, 0.06, 'triangle', 0.03); }   // clink off the icicles
+    if (b.x < BR){ b.x = BR; b.vx = Math.abs(b.vx) * 0.5; }
+    if (b.x > W - BR){ b.x = W - BR; b.vx = -Math.abs(b.vx) * 0.5; }
+    // the snowman swats your shots: his body, or his stick arms when they're up
+    if (b.own === 'me' && b.live && !b.blocked && !S.hot && Math.abs(b.x - S.x) < 8 && b.y > FLOOR - (32 + S.arms * 10) && b.y < FLOOR - 2) snowBlock(b);
+    if (Math.abs(b.vx) + Math.abs(b.vy) > 30){
+      for (i = 0; i < G.pengs.length; i++){
+        var pg = G.pengs[i];
+        if (pg.st === 'stand' && Math.abs(b.x - pg.x) < 5 && b.y > FLOOR - 12){ bonk(pg, b); break; }
+      }
+    }
+    if (b.vy >= 0 && py + BR <= FLOOR + 0.5 && b.y + BR >= FLOOR){
+      b.y = FLOOR - BR; b.live = false;
+      if (b.shot){
+        b.shot = false;
+        if (b.own === 'me'){ if (G.streak >= 3) addPop(G.pops, p.x, p.y - 24, 'STREAK OVER', '#f86060'); G.streak = 0; }
+      }
+      if (b.ret){ var oh = b.own === 'me' ? p : B.h; b.ret = false; b.vx = (oh.x < b.x ? -1 : 1) * rand(40, 60); }
+      if (b.vy > 25){ if (b.own === 'me') sfx.bounce(b.vy / 3000); b.vy = -b.vy * 0.55; b.vx *= 0.9; }
+      else { b.vy = 0; b.vx *= Math.pow(0.6, h); if (Math.abs(b.vx) < 2) b.vx = 0; }   // the ice barely slows it down
+    }
+    b.rest = b.vy === 0 && b.vx === 0 ? b.rest + h : 0;
+  }
+
+  /* ---------- the polar bear: slow on the ice, strong from close up ---------- */
+  function bearThink(dt){
+    var h = B.h, mv = 0;
+    if (!B.has){
+      var b = B.ball;
+      B.spot = null;
+      if (!b.live && b.free && b.noPick <= 0 && Math.abs(b.x - h.x) > 3) mv = (b.x < h.x ? -1 : 1) * 0.55;
+    } else if (B.meter){
+      B.meter.p += dt / 1.4;
+      if (B.meter.p >= B.target) shootBall(B, B.meter.p);
+    } else if (B.spot == null){
+      var r = Math.random();
+      B.hoop = r < 0.5 ? 0 : (r < 0.82 ? 2 : 1);
+      // try spots, closest first, until he finds one he can make the shot from
+      var hh = ICE_HOOPS[B.hoop];
+      for (var tries = 0; tries < 24 && B.spot == null; tries++){
+        var sx = clamp(hh.x + (Math.random() < 0.5 ? -1 : 1) * (40 + tries * 5 + rand(0, 8)), 14, W - 14), sf = hh.x > sx ? 1 : -1;
+        if (bestPowerAt(sx + sf * 2, FLOOR - B.top, sf, hh.x, hh.y) >= 0) B.spot = sx;
+      }
+      B.thinkT = rand(1, 1.6);
+    } else if (Math.abs(h.x - B.spot) > 4){
+      mv = (B.spot < h.x ? -1 : 1) * 0.55;
+    } else if (Math.abs(h.vx) < 6){
+      B.thinkT -= dt;
+      if (B.thinkT <= 0){
+        var g = iceGeo(B.hoop, G.t);
+        h.face = g.cx > h.x ? 1 : -1;
+        var bp = bestPowerAt(h.x + h.face * 2, h.y - B.top, h.face, (g.rl + g.rr) / 2, g.y);
+        if (bp < 0) B.spot = null;
+        else { B.target = clamp(bp + gauss() * 0.03, 0.02, 1); B.meter = { p: 0, dir: 1 }; }
+      }
+    }
+    return mv;
+  }
+  /* ---------- the snowman: glides around and decides when to guard you hardest ---------- */
+  function stepSnowman(dt){
+    S.shiver = Math.max(0, S.shiver - dt);
+    S.hot = !!G.magic;                                                     // magic is too hot to handle
+    S.modeT -= dt;
+    if (S.modeT <= 0){
+      // he guards you more when you're ahead of the bear or on a streak
+      var want = 0.3 + (G.me > G.them ? 0.3 : 0) + Math.min(0.3, G.streak * 0.1);
+      var was = S.mode;
+      S.mode = Math.random() < want ? 'guard' : 'wander';
+      S.modeT = rand(2.5, 4.5);
+      if (S.mode === 'wander') S.tx = rand(30, W - 30);
+      if (S.mode === 'guard' && was !== 'guard'){ addPop(G.pops, S.x, FLOOR - 44, pick(['I GOT YOU!', 'NOT TODAY!', 'COLD DEFENSE!']), '#d8f2ff'); tone(500, 0.1, 'triangle', 0.03, -200); }
+    }
+    if (S.mode === 'guard'){
+      if (me.has){
+        var g = facingHoop(), gap = clamp((g.cx - p.x) * 0.45, -40, 40);
+        if (Math.abs(gap) < 18) gap = 18 * (gap < 0 ? -1 : 1) * (p.face || 1);
+        S.tx = p.x + gap;
+      } else S.tx = p.x + p.face * 24;
+    }
+    S.tx = clamp(S.tx, 10, W - 10);
+    var want2 = Math.abs(S.tx - S.x) > 3 ? sgn(S.tx - S.x) * 22 : 0;
+    S.vx += (want2 - S.vx) * Math.min(1, dt * 1.5);
+    S.x = clamp(S.x + S.vx * dt, 10, W - 10);
+    if (Math.abs(S.vx) > 3) S.face = sgn(S.vx); else S.face = p.x > S.x ? 1 : -1;
+    var up = S.hot ? 0 : (S.mode === 'guard' && (G.meter || !p.ground) ? 1 : (S.mode === 'guard' ? 0.5 : 0));
+    S.arms += (up - S.arms) * Math.min(1, dt * 6);
+    if (S.hot && Math.random() < dt * 3){ S.shiver = 0.3; burst(G.parts, S.x + rand(-5, 5), FLOOR - rand(4, 30), 1, ['#a8daf4', '#fcfcfc'], 10, 40, 0.6); }
+  }
+  /* ---------- penguins: watching, and belly-sliding when bonked ---------- */
+  function stepPenguins(dt){
+    for (var i = 0; i < G.pengs.length; i++){
+      var pg = G.pengs[i];
+      pg.t += dt;
+      if (pg.st === 'stand'){
+        pg.blinkT -= dt;
+        if (pg.blinkT <= 0) pg.blinkT = rand(2, 5);
+        if (Math.random() < dt * 0.4) pg.face = p.x > pg.x ? 1 : -1;   // they keep an eye on you
+      } else if (pg.st === 'slide'){
+        pg.x += pg.vx * dt; pg.vx -= sgn(pg.vx) * 50 * dt;
+        if (pg.x < 6 || pg.x > W - 6){ pg.x = clamp(pg.x, 6, W - 6); pg.vx = -pg.vx * 0.5; pg.face = sgn(pg.vx); }
+        if (Math.random() < dt * 6) G.parts.push({ x: pg.x - pg.face * 5, y: FLOOR - 1, vx: -pg.face * rand(5, 15), vy: -rand(5, 15), g: 40, life: 0.4, c: '#fcfcfc' });
+        if (Math.abs(pg.vx) < 8){ pg.st = 'getup'; pg.t = 0; }
+      } else if (pg.st === 'getup'){
+        if (pg.t > 0.6){ pg.st = 'waddle'; tone(1500, 0.06, 'square', 0.02, 200); }
+      } else {
+        var dx = pg.home - pg.x;
+        if (Math.abs(dx) < 1){ pg.x = pg.home; pg.st = 'stand'; pg.face = p.x > pg.x ? 1 : -1; }
+        else { pg.x += sgn(dx) * 14 * dt; pg.face = sgn(dx); pg.anim += dt * 8; }
+      }
+    }
+  }
+
+  /* ---------- magic mode: 10-ball shots and the turbo slam ---------- */
+  function startMagic(){
+    G.magic = { left: 20, cool: 0, turbo: null, cracks: [0, 0, 0], gone: false, endT: 0 };
+    G.meter = null; G.bonks = 0;
+    addCheer(G.pops, W / 2, 40, 'MAGIC MODE!!');
+    addPop(G.pops, W / 2, 56, 'SHOOT: 10 BALLS AT ONCE!', '#e0b0ff');
+    addPop(G.pops, W / 2, 66, 'DUNK A GLASS HOOP FOR THE TURBO SLAM!', '#e0b0ff');
+    fireworks(G.parts, 3);
+    sfx.bonus();
+  }
+  function endMagic(text){
+    G.magic = null;
+    addPop(G.pops, W / 2, 50, text, '#e0b0ff', true);
+  }
+  function tenShot(){
+    var M = G.magic, g = facingHoop();
+    M.cool = 1.8; p.face = g.cx > p.x ? 1 : -1;
+    for (var k = 0; k < 10; k++) G.mballs.push({ delay: k * TEN_SHOT_GAP, hoop: g.i, u: 0, k: k % 3, x: p.x, y: p.y - 17, x0: 0, y0: 0, arc: 26 + k * 2 });
+    addCheer(G.pops, W / 2, 34, 'MAGIC x10!!');
+    G.shake = 0.3;
+    tone(300, 0.4, 'square', 0.05, 900);
+  }
+  function stepMagicBalls(dt){
+    for (var i = G.mballs.length - 1; i >= 0; i--){
+      var b = G.mballs[i];
+      if (b.delay > 0){ b.delay -= dt; b.x = p.x + p.face * 2; b.y = p.y - 17; b.x0 = b.x; b.y0 = b.y; if (b.delay <= 0) sfx.dribble(); continue; }
+      b.u += dt / 0.6;
+      var g = iceGeo(b.hoop, G.t), u = Math.min(1, b.u), x1 = (g.rl + g.rr) / 2, y1 = g.y - 2;
+      b.x = b.x0 + (x1 - b.x0) * u; b.y = b.y0 + (y1 - b.y0) * u - Math.sin(Math.PI * u) * b.arc;
+      if (Math.random() < 0.5) G.parts.push({ x: b.x, y: b.y, vx: 0, vy: 0, g: 0, life: 0.3, c: pick(MAGIC_COLS) });
+      if (b.u >= 1){
+        gain(g.pts); G.netH = g.i; G.netT = 0.5;
+        burst(G.parts, x1, g.y + 4, 8, ['#f8d800', '#fcfcfc'].concat(MAGIC_COLS), 50, 40, 0.7);
+        addPop(G.pops, x1 + rand(-10, 10), g.y + 18, '+' + g.pts, '#fcfc78');
+        tone(880 + (10 - G.mballs.length) * 60, 0.06, 'square', 0.03);
+        G.mballs.splice(i, 1);
+      }
+    }
+  }
+  function startTurbo(i){
+    G.magic.turbo = { at: i, t: 0, fly: null, n: 0 };
+    G.meter = null;
+    addCheer(G.pops, W / 2, 34, 'TURBO SLAM!!');
+    slam(i);
+  }
+  function slam(i){
+    var M = G.magic, T = M.turbo, d = ICE_DUNKS[i];
+    p.x = d.x; p.y = d.y + 15; p.vx = 0; p.vy = 0; p.ground = null;
+    M.cracks[i] = Math.min(1, M.cracks[i] + 0.25);
+    T.n++; gain(TURBO_PTS);
+    addPop(G.pops, d.x, d.y - 26, 'SLAM! +' + TURBO_PTS, '#fcfc78');
+    burst(G.parts, d.x, d.y, 18, ['#f8d800', '#fcfcfc'].concat(MAGIC_COLS), 70, 40, 0.9);
+    G.shake = 0.3; G.netT = 0.5;
+    sfx.swish(); hiss(0.1, 0.08, 1500); tone(1400, 0.05, 'square', 0.05, -900);
+    if (M.cracks[0] >= 1 && M.cracks[1] >= 1 && M.cracks[2] >= 1) shatter();
+  }
+  function shatter(){
+    var M = G.magic;
+    M.gone = true; M.turbo = null; M.endT = 1.6;
+    gain(SHATTER_PTS);
+    ICE_DUNKS.forEach(function(d){ burst(G.parts, d.x, d.y - 10, 30, ['#c8f0ff', '#fcfcfc', '#80d8f8'], 80, 220, 1.4); });
+    addCheer(G.pops, W / 2, 34, 'ALL THE GLASS IS GONE!!');
+    addPop(G.pops, W / 2, 52, '+' + SHATTER_PTS, '#fcfc78', true);
+    fireworks(G.parts, 4);
+    G.shake = 1.2;
+    hiss(0.6, 0.09, 3000); tone(1600, 0.3, 'square', 0.04, -1300); sfx.fanfare();
+  }
+  function stepTurbo(dt){
+    var T = G.magic.turbo;
+    T.t += dt;
+    if (!T.fly){
+      var d0 = ICE_DUNKS[T.at];
+      p.x = d0.x; p.y = d0.y + 15; p.vx = 0; p.vy = 0;
+      if (T.t > 0.14){ T.fly = { to: (T.at + 1) % 3, x0: p.x, y0: p.y }; T.t = 0; tone(300, 0.25, 'square', 0.04, 900); }
+      return;
+    }
+    // turbo jump: a fast spinning arc to the next glass hoop with a rainbow trail
+    var F = T.fly, k = Math.min(1, T.t / 0.3), e = k * k * (3 - 2 * k), d = ICE_DUNKS[F.to];
+    p.x = F.x0 + (d.x - F.x0) * e; p.y = F.y0 + (d.y + 15 - F.y0) * e - Math.sin(Math.PI * k) * 22;
+    p.vx = 0; p.vy = 0; p.face = d.x > F.x0 ? 1 : -1; p.flipT = 0.3 * (1 - k);
+    burst(G.parts, p.x, p.y - 7, 2, MAGIC_COLS, 12, 0, 0.5);
+    if (k >= 1){ T.at = F.to; T.fly = null; T.t = 0; slam(T.at); }
+  }
+  function stepMagic(dt){
+    var M = G.magic;
+    if (Math.random() < dt * 10) burst(G.parts, p.x + rand(-4, 4), p.y - rand(0, 14), 1, MAGIC_COLS, 8, -20, 0.6);
+    M.cool = Math.max(0, M.cool - dt);
+    if (M.gone){ M.endT -= dt; if (M.endT <= 0){ p.ground = null; endMagic('WHAT A SHOW!'); } return; }
+    if (M.turbo){ stepTurbo(dt); return; }                                  // the magic clock waits during the turbo slam
+    M.left -= dt;
+    if (M.left <= 0){ endMagic('MAGIC MELTED'); return; }
+    if (me.has){
+      for (var i = 0; i < 3; i++){
+        var d = ICE_DUNKS[i];
+        if (Math.abs(p.x - d.x) < 12 && p.y > d.y - 6 && p.y < d.y + 18){ startTurbo(i); return; }
+      }
+    }
+  }
+
+  G.update = function(dt){
+    var i;
+    G.t += dt; G.left -= dt; G.netT = Math.max(0, G.netT - dt); G.rimSnd -= dt; G.shake = Math.max(0, G.shake - dt);
+    var gs = geos();
+    var mv = (G.meter && p.ground) ? 0 : (inp.l ? -1 : (inp.r ? 1 : 0));
+    if (G.meter && p.ground && (inp.l || inp.r)) p.face = inp.l ? -1 : 1;
+    p.jumpHeld = inp.a || inp.u;
+    if (G.magic) stepMagic(dt);
+    if (!G.hang() && !(G.magic && G.magic.gone && G.magic.endT > 0 && !p.ground && p.y < 60)) stepHero(G, p, dt, mv);
+    if (G.meter){
+      if (!me.has) G.meter = null;
+      else {
+        G.meter.p += G.meter.dir * dt / (p.ground ? 1.4 : 0.55);
+        if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
+      }
+    }
+    stepHero(G, B.h, dt, bearThink(dt));
+    if (me.has) holdBall(me, dt, !!G.meter || G.hang()); else looseBall(me, dt);
+    if (B.has) holdBall(B, dt, !!B.meter); else looseBall(B, dt);
+    stepSnowman(dt);
+    stepPenguins(dt);
+    stepMagicBalls(dt);
+    for (i = 0; i < balls.length; i++){
+      var b = balls[i];
+      b.noPick = Math.max(0, b.noPick - dt);
+      if (b.free) for (var k = 0; k < 3; k++) stepBall(b, dt / 3, gs);
+    }
+    stepFx(G.parts, G.pops, dt);
+    if (G.left <= 0 && !G.done){
+      G.left = 0; G.meter = null; G.magic = null;
+      if (G.me > G.them){ G.score += 10; G.clearText = 'YOU BEAT THE BEAR!'; addPop(G.pops, W / 2, 56, '+10 BEAR BONUS', '#58f878', true); }
+      else G.clearText = G.me === G.them ? 'TIE GAME!' : 'THE BEAR WINS!';
+      G.done = true;
+    }
+  };
+
+  G.draw = function(v){
+    var c = v.c, t = G.t, i, gs = geos(), M = G.magic;
+    gameXf(v);
+    c.drawImage(iceBg(), 0, 0);
+    for (i = 0; i < 3; i++) drawIceHoop(c, gs[i], G.netH === i ? G.netT : 0);
+    if (M && !M.gone) for (i = 0; i < 3; i++) drawGlassHoop(c, ICE_DUNKS[i], M.cracks[i], t, 0);
+    drawSnowman(c, S, t);
+    var bh = B.h, bob = bh.vx && bh.ground && Math.floor(t * 8) % 2 ? 1 : 0;
+    c.drawImage(BEAR_SPRITE, Math.round(bh.x) - 8, Math.round(bh.y) - 19 - bob);
+    for (i = 0; i < G.pengs.length; i++){
+      var pg = G.pengs[i], spr;
+      if (pg.st === 'slide' || pg.st === 'getup'){ spr = PENGUIN_SPR.slide; c.drawImage(pg.face > 0 ? spr.r : spr.l, Math.round(pg.x) - 5, FLOOR - 4); }
+      else {
+        spr = pg.st === 'stand' && pg.blinkT < 0.15 ? PENGUIN_SPR.blink : PENGUIN_SPR.stand;
+        c.drawImage(pg.face > 0 ? spr.r : spr.l, Math.round(pg.x) - 3, FLOOR - 10 - (pg.st === 'waddle' && Math.floor(pg.anim) % 2 ? 1 : 0));
+      }
+    }
+    drawHero(c, G.look, p, (me.has && (!!G.meter || !p.ground)) || G.hang());
+    if (G.meter) drawMeter(c, p.x, p.y, G.meter.p);
+    if (B.meter) drawMeter(c, bh.x - 3, bh.y - 7, B.meter.p);
+    for (i = 0; i < balls.length; i++) if (balls[i].x > -10) drawBall(c, balls[i].x, balls[i].y, balls[i].rot, balls[i].k);
+    for (i = 0; i < G.mballs.length; i++) if (G.mballs[i].delay <= 0) drawBall(c, G.mballs[i].x, G.mballs[i].y, t * 12, G.mballs[i].k);
+    drawParts(c, G.parts);
+    for (i = 0; i < 3; i++) vText(v, gs[i].pts + ' PTS', gs[i].cx, gs[i].y + 19, '#fcfcfc', nameSize(v));
+    c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(W / 2 - 46, ICE_CEIL + 13, 92, 12);
+    vText(v, 'YOU ' + G.me + '  -  ' + G.them + ' BEAR', W / 2, ICE_CEIL + 19, '#fcfcfc', nameSize(v));
+    vText(v, 'POLAR BEAR', bh.x, Math.min(H - 5, bh.y + 6), '#c8e0ff', Math.round(nameSize(v) * 0.8));
+    drawPops(v, G.pops);
+  };
+  G.press = function(k){
+    if (k === 'jump') heroJump(G, p);
+    else if (k === 'drop') heroDrop(p);
+    else if (k === 'shoot'){
+      if (G.magic){
+        if (G.magic.turbo || G.magic.gone) return;
+        if (!me.has || G.magic.cool > 0){ addPop(G.pops, p.x, p.y - 22, 'WAIT FOR IT', '#e0b0ff'); return; }
+        tenShot();
+        return;
+      }
+      if (!me.has){ addPop(G.pops, p.x, p.y - 22, 'GET YOUR BALL', '#fcfcfc'); return; }
+      G.meter = { p: 0, dir: 1 };
+    }
+  };
+  G.release = function(k){ if (k === 'shoot' && G.meter && me.has) shootBall(me, G.meter.p); };
+  G.hud = function(){
+    return { balls: -1, info: G.magic ? (G.magic.turbo ? 'TURBO SLAM!' : 'MAGIC ' + Math.ceil(G.magic.left)) : 'PENGUINS ' + G.bonks + '/' + ICE_BONKS };
+  };
+  G.startMagic = startMagic; G.bear = B; G.snowman = S;                   // handy for testing
+  return G;
+}
+
+/* ============================================================
    THE BOARDS
 ============================================================ */
 var BOARDS = [
@@ -2346,7 +2947,9 @@ var BOARDS = [
   { id: 'beach', name: 'HOOPS AT THE BEACH', sub: 'PALM TREE HOOPS: LIGHT THEM UP IN ORDER, THEN MAGIC', make: function(){ return CourtGame(false); },
     how: 'SHOOT THE LIT HOOP IN ORDER: 2, 3, THEN 5 PTS &nbsp; JUMP SHOT +1<br>THEN MAGIC: DUNK THE LOW HOOP AND FOLLOW THE ARROWS FOR A SUPER DUNK,<br>DUNK THE GLASS HOOP, OR JUMP OFF THE PLATFORM AND SHOOT<br>GRAB YOUR REBOUND TO KEEP THE BALL &nbsp; 2 MINUTES' },
   { id: 'sky', name: 'IN THE CLOUDS', sub: "AIR JORDANN'S ON: TRIPLE JUMP, SKY HOOP, RAIN CLOUDS", make: function(){ return CourtGame(true); },
-    how: "YOU'RE WEARING THE AIR JORDANN'S: JUMP HIGHER, AND JUMP 3 TIMES<br>SPRINGY CLOUDS &nbsp; LIT HOOPS 2, 3, 5, THEN MAGIC<br>THE GOLDEN SKY HOOP IS WORTH 7 ANY TIME<br>DON'T HIT A RAIN CLOUD: LIGHTNING TAKES HALF YOUR POINTS! &nbsp; 2 MINUTES" }
+    how: "YOU'RE WEARING THE AIR JORDANN'S: JUMP HIGHER, AND JUMP 3 TIMES<br>SPRINGY CLOUDS &nbsp; LIT HOOPS 2, 3, 5, THEN MAGIC<br>THE GOLDEN SKY HOOP IS WORTH 7 ANY TIME<br>DON'T HIT A RAIN CLOUD: LIGHTNING TAKES HALF YOUR POINTS! &nbsp; 2 MINUTES" },
+  { id: 'ice', name: 'FROZEN HOOPS', sub: 'SLIPPERY ICE, A POLAR BEAR, A SNOWMAN ON DEFENSE, AND PENGUINS', make: IceGame,
+    how: 'HOOPS HANG FROM THE ICICLES: 2, 3 AND 5 PTS &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. BONK A PENGUIN +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
