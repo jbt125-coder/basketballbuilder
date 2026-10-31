@@ -1551,7 +1551,7 @@ function CourtGame(sky){
    BOARD 1: STREET BALL — an outdoor court behind a chain link fence, pigeons watching from
    the top rail, cars going by, and a guy named Dre who wants to bet you
 ============================================================ */
-var STREET_WARM = 60, STREET_MATCH = 120, FENCE_TOP = 57;
+var STREET_WARM = 60, STREET_MATCH = 60, FENCE_TOP = 57;
 var RIVAL_LOOK = { shirt: 9, skin: 3, hat: 6, hc: 0, shoe: 0 };
 var VENDOR_LOOK = { shirt: 2, skin: 1, hat: 2, hc: 5, shoe: 0 };
 var TALK_COLS = { YOU: '#58d8f8', DRE: '#f87858', CARL: '#f8d800', 'KING HOOPER': '#f8c000' };
@@ -1745,6 +1745,7 @@ function StreetGame(){
   var A = { h: newHero(-16), look: RIVAL_LOOK, ball: mkBall(4, 'ai'), has: true, noBallT: 0, meter: null, spot: null, thinkT: 0, target: 0, sk: AI_SKILL.easy, go: null, drink: null };
   var V = { h: newHero(-44), look: VENDOR_LOOK, go: null };
   var balls = [me.ball, A.ball];
+  G.balls = balls;                                                     // handy for testing
   [24, 40, 52, 88, 122, 136, 178, 196, 218].sort(function(){ return Math.random() - 0.5; }).slice(0, 7).forEach(function(x){
     G.pigeons.push({ home: x, x: x, y: FENCE_TOP, kind: Math.random() < 0.4 ? 1 : 0, face: Math.random() < 0.5 ? 1 : -1, st: 'sit', peck: 0, peckT: rand(1, 4), f: 0, vx: 0, vy: 0, backT: 0 });
   });
@@ -1804,7 +1805,7 @@ function StreetGame(){
     var spot = p.x > 50 ? clamp(p.x - 28, 20, 170) : p.x + 28;
     run([{ wait: 1.2 }, { walk: A, to: spot }, { fn: face },
       say('DRE', 'YO! NOT BAD.'),
-      say('DRE', "BET YOU $20 I CAN TAKE YOU. TWO MINUTES, SAME HOOP, MOST POINTS WINS."),
+      say('DRE', "BET YOU $20 I CAN TAKE YOU. ONE MINUTE, SAME HOOP, MOST POINTS WINS."),
       say('DRE', 'STREET RULES: EVERY BUCKET IS 1. FROM BEHIND THE LINE IS 2.'),
       say('DRE', 'NO STREAKS, NO HEATING UP. JUST HOOPS.'),
       say('YOU', "YOU'RE ON!"),
@@ -1818,7 +1819,7 @@ function StreetGame(){
     if (!me.has) grab(me);
     if (!A.has) grab(A);
     addCheer(G.pops, W / 2, 40, n === 1 ? 'GAME ON!' : (n === 2 ? 'DOUBLE OR NOTHING!' : 'FINAL GAME!'));
-    addPop(G.pops, W / 2, 56, 'MOST POINTS IN 2 MINUTES WINS', '#fcfcfc');
+    addPop(G.pops, W / 2, 56, 'MOST POINTS IN 1 MINUTE WINS', '#fcfcfc');
     sfx.bonus();
   }
   function endMatch(){
@@ -1844,7 +1845,7 @@ function StreetGame(){
       { walk: V, to: 22 }, { fn: function(){ V.h.face = 1; } },
       say('CARL', 'ICE COLD WATER! JUST $2!'),
       say('YOU', "I'M THIRSTY. I'LL TAKE ONE."),
-      { fn: function(){ run([waterMenu()]); } }];
+      { fn: function(){ run(buyWater()); } }];
     if (n === 2) return [
       say('DRE', "TOO EASY! THAT'S $40. PAY UP."),
       { fn: function(){
@@ -1872,21 +1873,16 @@ function StreetGame(){
       say('YOU', 'GOOD GAME!')].concat(G.powered ? [say('CARL', 'TOLD YOU. SPECIAL DRINK.')] : []).concat([
       { fn: startShootaround }]);
   }
-  function waterMenu(){
-    return { name: 'CARL', menu: 'CASH, TAP, OR CREDIT CARD?', bill: [['WATER', 2]], opts: [
-      { id: 'cash', label: 'CASH', sub: 'YOU HAVE $' + money(G.cash) },
-      { id: 'tap', label: 'TAP', sub: 'PAY WITH YOUR PHONE' },
-      { id: 'card', label: 'CREDIT CARD', sub: 'CHARGE IT' }],
-      pick: function(id){
-        if (id === 'card') charge(2); else spend(2);
-        if (id === 'tap') tone(1760, 0.1, 'square', 0.04);
-        run([say('CARL', id === 'cash' ? 'HERE YOU GO. STAY COOL!' : 'BEEP! ALL SET. STAY COOL!'),
-          { fn: function(){ drink(me, 'water'); } }, { wait: 2 },
-          say('DRE', 'FEELING GOOD? HOW ABOUT DOUBLE OR NOTHING.'),
-          say('DRE', '$40 THIS TIME. SAME RULES.'),
-          say('YOU', "LET'S GO!"),
-          { fn: function(){ startMatch(2); } }]);
-      } };
+  // the first water is just cash; the cash, tap or card question only comes when your cash runs out
+  function buyWater(){
+    return [say('CARL', "THAT'S $2."),
+      { fn: function(){ spend(2); } },
+      say('CARL', 'HERE YOU GO. STAY COOL!'),
+      { fn: function(){ drink(me, 'water'); } }, { wait: 2 },
+      say('DRE', 'FEELING GOOD? HOW ABOUT DOUBLE OR NOTHING.'),
+      say('DRE', '$40 THIS TIME. SAME RULES.'),
+      say('YOU', "LET'S GO!"),
+      { fn: function(){ startMatch(2); } }];
   }
   function drinksMenu(){
     var broke = G.cash < 12;
@@ -1998,8 +1994,8 @@ function StreetGame(){
   function powerUp(){
     G.powered = true;
     addCheer(G.pops, W / 2, 36, 'MAGIC POWERS!!');
-    addPop(G.pops, W / 2, 54, 'UNLIMITED JUMPS. EVERY SHOT GOES IN.', '#e0b0ff');
-    addPop(G.pops, W / 2, 64, 'JUMP UP TO THE RIM AND DUNK IT!', '#e0b0ff');
+    addPop(G.pops, W / 2, 54, 'EVERY SHOT: YOU FLY UP AFTER IT', '#e0b0ff');
+    addPop(G.pops, W / 2, 64, 'AND SLAM IT HOME!', '#e0b0ff');
     burst(G.parts, p.x, p.y - 8, 30, MAGIC_COLS, 80, 0, 1);
     fireworks(G.parts, 3);
     G.shake = 0.6;
@@ -2009,10 +2005,10 @@ function StreetGame(){
   /* ---------- balls ---------- */
   function grab(S){ S.has = true; S.ball.free = false; S.ball.live = false; S.noBallT = 0; if (S === me) sfx.dribble(); }
   function shootBall(S, pw){
-    var h = S.h, b = S.ball, magic = S === me && G.powered && G.phase === 'match';
-    if (magic){ var bp = bestPower(h.x + h.face * 2, h.y - 17, h.face); if (bp >= 0) pw = bp; }
+    var h = S.h, b = S.ball;
+    if (S === me && G.powered && G.phase === 'match'){ shootAndSlam(); return; }
     var v = 165 + pw * 105;
-    b.free = true; b.live = true; b.scored = false; b.from = h.x; b.noPick = 0.6; b.rest = 0; b.ret = false; b.shot = true; b.magic = magic;
+    b.free = true; b.live = true; b.scored = false; b.from = h.x; b.noPick = 0.25; b.rest = 0; b.ret = false; b.shot = true; b.age = 0;
     b.parrot = S === me && G.phase === 'last';
     if (b.parrot) G.lastShot = true;
     b.x = h.x + h.face * 2; b.y = h.y - 17;
@@ -2020,7 +2016,6 @@ function StreetGame(){
     S.has = false; S.noBallT = 0;
     if (S === me) G.meter = null; else S.meter = null;
     sfx.dribble();
-    if (magic) burst(G.parts, b.x, b.y, 10, MAGIC_COLS, 40, 0, 0.5);
   }
   function holdBall(S, dt, up){
     var h = S.h, b = S.ball;
@@ -2035,8 +2030,14 @@ function StreetGame(){
   function looseBall(S, dt){
     var h = S.h, b = S.ball;
     S.noBallT += dt;
+    // grab it the moment you touch it: on the floor, on a bounce, or coming off the rim
+    var loose = b.free && (!b.live || b.scored || (b.vy > 0 && (b.age || 0) > 0.3)) && !(G.slam && S === me);
+    if (loose && b.noPick <= 0 && Math.abs(b.x - h.x) < 8 && b.y > h.y - 22 && b.y < h.y + 2){
+      if (b.shot){ b.shot = false; if (S === me) G.streak = 0; }
+      if (S === me && b.live) addPop(G.pops, p.x, p.y - 24, 'REBOUND!', '#fcfcfc');
+      b.live = false; grab(S); return;
+    }
     if (b.live) return;
-    if (h.ground && b.free && b.noPick <= 0 && b.vy === 0 && Math.abs(b.x - h.x) < 8 && Math.abs(b.y + BR - h.y) < 4){ grab(S); return; }
     if (S.noBallT > (G.phase === 'story' ? 1 : (S === me ? 3.5 : 2.5))){   // a ball you can't reach pops back to you
       burst(G.parts, b.x, b.y, 8, ['#fcfcfc'], 40, 0, 0.4);
       grab(S);
@@ -2052,7 +2053,6 @@ function StreetGame(){
     if (b.own === 'me'){
       // street rules: a bucket is 1, from behind the line is 2
       var pts = long ? 2 : 1, label = long ? 'FROM DOWNTOWN!' : pick(['SWISH!', 'BUCKET!', 'NOTHIN NET!', 'CASH!']);
-      if (b.magic){ pts *= 2; label = long ? 'MAGIC THREE!' : 'MAGIC SHOT!'; addCheer(G.pops, W / 2, 34); }
       G.score += pts; if (G.phase === 'match') G.me += pts;
       addPop(G.pops, GYM_HX, hp.y - 12, '+' + pts, '#fcfc78');
       addPop(G.pops, GYM_HX, hp.y - 22, label, '#fcfcfc');
@@ -2063,23 +2063,42 @@ function StreetGame(){
       addPop(G.pops, GYM_HX, hp.y - 12, 'DRE +' + ap, '#f87858');
     }
   }
-  function dunk(){
+  // the special drink: every shot, you fly up after it and slam it home. Same points as the shot would be.
+  function shootAndSlam(){
     var b = me.ball;
-    me.has = false; me.noBallT = 0;
-    b.free = true; b.live = false; b.shot = false; b.scored = true; b.ret = true; b.magic = false;
-    b.x = GYM_HX; b.y = hp.y + 3; b.vx = 0; b.vy = 80; b.noPick = 0.6;
-    G.netT = 0.8; G.score += 3; G.me += 3; G.streak++;
-    addCheer(G.pops, W / 2, 34, 'SLAM DUNK!!');
-    addPop(G.pops, GYM_HX, hp.y - 14, '+3', '#fcfc78', true);
-    burst(G.parts, GYM_HX, hp.y, 24, MAGIC_COLS.concat(['#f8d800']), 80, 40, 1);
-    G.shake = 0.5; p.vy = -90;
-    sfx.swish(); sfx.bonus();
+    me.has = false; me.noBallT = 0; G.meter = null;
+    b.free = false; b.live = false; b.shot = false; b.age = 0;
+    G.slam = { t: 0, x0: p.x, y0: p.y, bx0: p.x + p.face * 2, by0: p.y - 17, long: Math.abs(p.x - GYM_HX) > LONG_SHOT };
+    p.face = GYM_HX > p.x ? 1 : -1; p.ground = null; p.vx = 0; p.vy = 0;
+    burst(G.parts, p.x, p.y - 17, 10, MAGIC_COLS, 40, 0, 0.5);
+    sfx.dribble(); tone(300, 0.35, 'square', 0.05, 900);
+  }
+  function stepSlam(dt){
+    var S = G.slam, b = me.ball, k, e;
+    S.t += dt;
+    // the ball arcs up to the rim, and you rocket up right behind it
+    k = Math.min(1, S.t / 0.35);
+    b.x = S.bx0 + (GYM_HX - S.bx0) * k; b.y = S.by0 + (hp.y - 8 - S.by0) * k - Math.sin(Math.PI * k) * 30; b.rot += dt * 20;
+    e = Math.min(1, S.t / 0.45); e = e * e * (3 - 2 * e);
+    var tx = GYM_HX - 6;
+    p.x = S.x0 + (tx - S.x0) * e; p.y = S.y0 + (hp.y + 14 - S.y0) * e - Math.sin(Math.PI * e) * 22; p.vx = 0; p.vy = 0; p.flipT = 0.3 * (1 - e);
+    burst(G.parts, p.x, p.y - 7, 1, MAGIC_COLS, 10, 0, 0.4);
+    if (S.t >= 0.45){
+      var pts = S.long ? 2 : 1;
+      b.free = true; b.live = false; b.scored = true; b.ret = true; b.shot = false;
+      b.x = GYM_HX; b.y = hp.y + 3; b.vx = 0; b.vy = 80; b.noPick = 0.3;
+      G.netT = 0.8; G.score += pts; G.me += pts;
+      addCheer(G.pops, W / 2, 34, pick(['SHOOT & SLAM!', 'SLAMMED IT!', 'FOLLOW-UP SLAM!']));
+      addPop(G.pops, GYM_HX, hp.y - 14, '+' + pts, '#fcfc78', true);
+      burst(G.parts, GYM_HX, hp.y, 22, MAGIC_COLS.concat(['#f8d800']), 80, 40, 1);
+      G.shake = 0.4; p.vy = -60; p.ground = null;
+      sfx.swish(); tone(90, 0.2, 'square', 0.05, -30);
+      G.slam = null;
+    }
   }
   function stepBall(b, h){
     var py = b.y, i;
-    b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR;
-    // a magic shot steers itself into the middle of the rim on the way down
-    if (b.magic && b.live && !b.scored && b.vy > 0 && b.y > hp.y - 40) b.x += (GYM_HX - b.x) * Math.min(1, h * 8);
+    b.vy += BALL_G * h; b.x += b.vx * h; b.y += b.vy * h; b.rot += b.vx * h / BR; b.age = (b.age || 0) + h;
     if (b.parrot && G.parrot && (G.parrot.st === 'fly')){
       // the last shot of the day finds the parrot, wherever you aimed
       var pr = G.parrot, pdx = pr.x - b.x, pdy = pr.y + 3 - b.y, pd = hyp(pdx, pdy) || 1, psp = Math.max(170, hyp(b.vx, b.vy)), pk = Math.min(1, h * 5);
@@ -2220,7 +2239,7 @@ function StreetGame(){
     var play = G.phase === 'warm' || G.phase === 'match' || G.phase === 'free' || G.phase === 'last';
     var mv = play && !(G.meter && p.ground) ? (inp.l ? -1 : (inp.r ? 1 : 0)) : 0;
     p.jumpHeld = inp.a || inp.u;
-    stepHero(G, p, dt, mv);
+    if (G.slam) stepSlam(dt); else stepHero(G, p, dt, mv);
     if (G.meter){
       if (!play || !me.has) G.meter = null;
       else {
@@ -2241,12 +2260,10 @@ function StreetGame(){
     G.storm += (G.stormTo - G.storm) * Math.min(1, dt * 1.2);
     G.flash = Math.max(0, G.flash - dt);
     if (G.stormTo > 0 && Math.random() < dt * 0.25) thunder();
-    if (G.powered && G.phase === 'match' && me.has && !p.ground && Math.abs(p.x - GYM_HX) < 12 && p.y > hp.y - 6 && p.y < hp.y + 18) dunk();
     for (i = 0; i < balls.length; i++){
       var b = balls[i];
       b.noPick = Math.max(0, b.noPick - dt);
       if (b.free) for (var k = 0; k < 3; k++) stepBall(b, dt / 3);
-      if (b.live && b.own === 'me' && b.magic) G.parts.push({ x: b.x + rand(-2, 2), y: b.y + rand(-2, 2), vx: rand(-10, 10), vy: rand(-20, 0), g: 0, life: 0.35, c: b.magic ? pick(MAGIC_COLS) : pick(['#f83800', '#f87800', '#f8d800']) });
     }
     stepFx(G.parts, G.pops, dt);
     if (play){
@@ -2323,9 +2340,10 @@ function StreetGame(){
     if (k === 'jump') heroJump(G, p);
     else if (k === 'drop') heroDrop(p);
     else if (k === 'shoot'){
+      if (G.slam) return;
       if (!me.has){ addPop(G.pops, p.x, p.y - 22, 'GET YOUR BALL', '#fcfcfc'); return; }
       var dx = GYM_HX - p.x;
-      if (Math.abs(dx) < 14){ addPop(G.pops, p.x, p.y - 22, G.powered && G.phase === 'match' ? 'JUMP UP AND DUNK IT!' : 'TOO CLOSE', '#fcfcfc'); return; }
+      if (Math.abs(dx) < 14 && !(G.powered && G.phase === 'match')){ addPop(G.pops, p.x, p.y - 22, 'TOO CLOSE', '#fcfcfc'); return; }
       G.meter = { p: 0, dir: 1 }; p.face = dx > 0 ? 1 : -1;
     }
   };
