@@ -5213,7 +5213,7 @@ function AlohaGame(){
    bobbing, crumbling platforms and horse flies and shoots; you copy it. Then you set one for him.
    Your misses spell H-U-M-A-N, his spell H-O-R-S-E. First to spell their whole word loses.
 ============================================================ */
-var EQ_WORD_ME = 'HUMAN', EQ_WORD_HIM = 'HORSE', EQ_COPY_SECS = 25, EQ_SET_SECS = 20, EQ_STAND = 1.6;
+var EQ_WORD_ME = 'HUMAN', EQ_WORD_HIM = 'HORSE', EQ_COPY_SECS = 10, EQ_SET_SECS = 10, EQ_STAND = 1.6;   // 10 seconds to shoot on your turn
 var EQ_HOOPS = [
   { i: 0, side: -1, bx: 10, y: 84, name: 'LEFT HOOP' },
   { i: 1, side: 1, bx: 244, y: 66, name: 'RIGHT HOOP' }
@@ -5407,6 +5407,7 @@ function EquusGame(){
       G.setter = 'me'; G.turn = 'between';
     } else if (G.turn === 'set'){
       if (made && hoop >= 0){ G.req = { steps: G.rec.slice(), hoop: hoop }; G.turn = 'alienCopyWait'; addPop(G.pops, W / 2, 30, 'NICE! NOW HE HAS TO COPY THAT', '#fcfc78', true); }
+      else if (S.timeout){ if (letter('me')) return; G.setter = 'alien'; G.turn = 'between'; }
       else { G.setter = 'alien'; G.turn = 'between'; addPop(G.pops, W / 2, 30, 'NO GOOD. HIS TURN TO SET', '#f8a050', true); }
     } else if (G.turn === 'alienCopy'){
       if (made){ addPop(G.pops, W / 2, 30, 'HE COPIED IT!', '#58f8b8', true); neigh(); }
@@ -5616,17 +5617,20 @@ function EquusGame(){
       } else {
         myBall.noPick -= dt;
         var loose = !myBall.live || myBall.scored || (myBall.vy > 0 && myBall.age > 0.3);
-        if ((loose && myBall.noPick <= 0 && Math.abs(myBall.x - p.x) < 8 && myBall.y > p.y - 22 && myBall.y < p.y + 2) || myBall.age > 3){ meHas = true; myBall.free = false; myBall.live = false; sfx.dribble(); }
+        if ((loose && myBall.noPick <= 0 && Math.abs(myBall.x - p.x) < 8 && myBall.y > p.y - 22 && myBall.y < p.y + 2) || myBall.age > 3){
+          if (G.shot && !G.shot.done && G.shot.ball === myBall) resolve(myBall.scored ? -2 : -1);   // a miss you grabbed back is still a miss
+          meHas = true; myBall.free = false; myBall.live = false; sfx.dribble();
+        }
       }
       // his ball comes back to him after a shot
       if (hisBall.free && hisBall.age > 2.4){ hisBall.free = false; hisBall.live = false; }
       if (!hisBall.free){ hisBall.x = A.x + A.face * (A.arms ? 3 : 7); hisBall.y = A.arms ? A.y - 26 : A.y - 10; }
       for (i = 0; i < 2; i++){ var b = G.balls[i]; if (b.free) for (var k = 0; k < 3; k++) stepBall(b, dt / 3); }
-      if (G.shot && !G.shot.done && G.shot.ball && G.shot.ball.age > 4) resolve(-1);
+      if (G.shot && !G.shot.done && G.shot.ball){ G.shot.t = (G.shot.t || 0) + dt; if (G.shot.t > 4) resolve(-1); }
       // the turn clock
       if ((G.turn === 'copy' || G.turn === 'set') && (!G.shot || G.shot.done)){
         G.turnT -= dt;
-        if (G.turnT <= 0){ addPop(G.pops, W / 2, 40, "TIME'S UP!", '#f86060', true); G.shot = { done: false }; resolve(-1); }
+        if (G.turnT <= 0){ addPop(G.pops, W / 2, 40, "TIME'S UP! NO SHOT", '#f86060', true); G.meter = null; G.shot = { done: false, timeout: true }; resolve(-1); }
       }
       if (G.waitT > 0){
         G.waitT -= dt;
@@ -5733,7 +5737,7 @@ var BOARDS = [
   { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
     how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' },
   { id: 'equus', name: 'PLANET EQUUS', sub: 'A GAME OF HUMAN AGAINST NEIGHTHAN THE HORSE ALIEN', make: EquusGame,
-    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>PLATFORMS DROP IF YOU STAND ON THEM TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.' }
+    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>PLATFORMS DROP IF YOU STAND ON THEM TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
