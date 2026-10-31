@@ -162,6 +162,7 @@ body.touch:not(.land) #pad { flex: 1; }
    Board 7: cyber court (BOLT the robot, drone birds, holo-hoops, overclock)
    Board 8: volcano beach (Kai and Lei, seals, nene, surfers, and the volcano)
    Board 9: planet equus (a game of HUMAN against Neighthan the horse alien)
+   Board 10: the bracket matches (you and Dre vs every team, then King Hooper in the final)
 ============================================================ */
 
 /* ============================================================
@@ -5753,6 +5754,856 @@ function EquusGame(){
 }
 
 /* ============================================================
+   BOARD 10: THE BRACKET MATCHES
+   you and Dre take on every team from the King's courts, 2 on 2 full court,
+   then King Hooper himself and a partner he picks. Carl sells drinks at halftime of the final.
+============================================================ */
+TALK_COLS['MR. FIRE'] = '#f8a060';
+var BR_KIND = {
+  me:    { speed: 82, err: 0, rel: 17, steal: 0.4 },
+  dre:   { speed: 78, err: 0.03, rel: 17, steal: 0.3, layup: 0.8 },
+  bear:  { speed: 76, err: 0.04, rel: 25, steal: 0.28, dunker: true, range: 80, name: 'FROSTY', tall: 30, dx: 10, big: true, think: 1 },
+  snow:  { speed: 72, err: 0.03, rel: 24, steal: 0.25, layup: 0.75, name: 'MR. FIRE', tall: 33, dx: 11, big: true, think: 1 },
+  kai:   { speed: 80, err: 0.034, rel: 17, steal: 0.3, layup: 0.8, name: 'KAI', tall: 19, open: 12, think: 0.7 },
+  lei:   { speed: 84, err: 0.034, rel: 17, steal: 0.32, layup: 0.82, name: 'LEI', tall: 21, open: 12, think: 0.7 },
+  neigh: { speed: 82, err: 0.03, rel: 22, steal: 0.3, layup: 0.85, name: 'NEIGHTHAN', tall: 29, dx: 8, think: 0.9 },
+  bolt:  { speed: 76, err: 0.026, rel: 22, steal: 0.36, layup: 0.85, name: 'BOLT', tall: 28, dx: 8, think: 0.9 },
+  king:  { speed: 84, err: 0.022, rel: 24, steal: 0.36, secure: 0.3, dunker: true, range: 140, name: 'KING HOOPER', tall: 26, dx: 8, think: 0.8 }
+};
+var BR_TEAMS = [
+  { a: 'bear', b: 'snow', tag: 'FROSTY+FIRE', title: 'FROSTY & MR. FIRE' },
+  { a: 'kai', b: 'lei', tag: 'KAI+LEI', title: 'KAI & LEI' },
+  { a: 'neigh', b: 'bolt', tag: 'NEIGH+BOLT', title: 'NEIGHTHAN & BOLT' },
+  { a: 'king', b: null, tag: 'KING+', title: 'KING HOOPER & ' }
+];
+var BR_MATCH = 60;
+/* King Hooper as a player: no scepter, his arms out (or up for a shot) */
+function drawKingPlayer(c, x, y, f, armsUp){
+  var bk = x - f * 6;
+  c.fillStyle = '#000'; c.fillRect(Math.min(bk, bk - f * 3) - 1, y - 12, 5, 11);
+  c.fillStyle = '#601020'; c.fillRect(Math.min(bk, bk - f * 3), y - 11, 4, 9);
+  c.fillStyle = '#f8d000'; c.fillRect(Math.min(bk, bk - f * 3), y - 3, 4, 1);
+  function arm(sd){
+    var sx = x + sd * 4 - 1, sy = y - 12, ex = armsUp ? x + sd * 2 + f * 2 : x + sd * 6, ey = armsUp ? y - 24 : y - 6;
+    c.fillStyle = '#000'; pxLine(c, sx - 1, sy - 1, ex - 1, ey - 1, 3);
+    c.fillStyle = '#901c30'; pxLine(c, sx, sy, ex, ey, 1);
+    c.fillStyle = '#c88858'; c.fillRect(ex, ey, 1, 1);
+  }
+  arm(-f);
+  c.drawImage(f > 0 ? KING_SPRITE.r : KING_SPRITE.l, f > 0 ? x - 5 : x - 8, y - 21);
+  arm(f);
+}
+function drawLeiAt(c, x, y){ var cols = ['#f878b8', '#f8d800', '#fcfcfc', '#f87800']; for (var k = 0; k < 5; k++){ c.fillStyle = cols[k % 4]; c.fillRect(Math.round(x) - 2 + k, Math.round(y) - 10 + (k > 0 && k < 4 ? 1 : 0), 1, 1); } }
+
+function BracketGame(){
+  var G = newWorld();
+  G.left = BR_MATCH; G.phase = 'story'; G.pickCD = 0; G.pts = [0, 0]; G.match = 0; G.half = 1; G.picksOn = true; G.dark = 0; G.clock = JAM_CLOCK;
+  G.netT = 0; G.netK = 0; G.deadT = 0; G.target = 11; G.sudden = false; G.magic = null; G.slamT = 0; G.matchScore0 = 0;
+  G.cam = { x: JAM_L / 2, y: 110, z: 0.6 };
+  G.queue = []; G.step = null; G.ui = null; G.uiRev = 0; G.inStep = false;
+  G.bench = []; G.flyers = []; G.flyT = rand(3, 6); G.partner = null; G.drinkT = 0; G.drinkKind = null; G.sparkT = 0;
+  function mkSnow(){ return { x: 0, vx: 0, face: -1, arms: 0, mood: '', moodT: 0, dp: 0, walk: 0, shiver: 0, hot: false, noBall: true }; }
+  function mk(kind, team, x, z){
+    return { kind: kind, team: team, x: x, z: z, h: 0, vx: 0, vz: 0, vh: 0, face: team ? -1 : 1, anim: 0, dp: 0, meter: null, target: 0,
+      think: 0, tx: x, tz: z, wing: rand(70, 115), stealCD: 0, dunk: null, walkTo: null, picked: 0, snow: mkSnow() };
+  }
+  var me = mk('me', 0, 190, 130), dre = mk('dre', 0, 140, 70), A1 = mk('bear', 1, 270, 90), A2 = mk('snow', 1, 290, 170);
+  var P = [me, dre, A1, A2];
+  dre.man = A1; A1.man = dre; A2.man = me; me.man = A2;
+  var ball = { x: me.x, z: me.z, h: 10, vx: 0, vz: 0, vh: 0, holder: me, st: 'held', shooter: null, team: 0, three: false, age: 0, passTo: null, noPick: null, noPickT: 0, rim: false, tried: [], clean: false, slam: false };
+  G.ball = ball; G.players = P;
+  function K(a){ return BR_KIND[a.kind]; }
+  function nm(a){ return a === me ? 'YOU' : (a === dre ? 'DRE' : K(a).name); }
+  function look(a){ return a.kind === 'me' ? LOOK : (a.kind === 'dre' ? RIVAL_LOOK : (a.kind === 'kai' ? KAI_LOOK : LEI_LOOK)); }
+  function dist(a, b){ return hyp(a.x - b.x, a.z - b.z); }
+  function attackHoop(team){ return team === 0 ? 1 : 0; }
+  function mate(a){ return a.team === 0 ? (a === me ? dre : me) : (a === A1 ? A2 : A1); }
+  function foes(a){ return a.team === 0 ? [A1, A2] : [me, dre]; }
+  function poss(){ return ball.holder ? ball.holder.team : (ball.st === 'pass' && ball.passTo ? ball.passTo.team : -1); }
+  function teamTag(){ var T = BR_TEAMS[G.match - 1] || BR_TEAMS[0]; return G.match === 4 ? 'KING+' + (G.partner ? shortName(G.partner) : '?') : T.tag; }
+  function shortName(k){ return { bear: 'FROSTY', snow: 'FIRE', kai: 'KAI', lei: 'LEI', neigh: 'NEIGH', bolt: 'BOLT' }[k]; }
+  function teamTitle(){ return G.match === 4 ? 'KING HOOPER & ' + BR_KIND[G.partner].name : BR_TEAMS[G.match - 1].title; }
+
+  /* ---------- the story runner: talking, menus, waiting ---------- */
+  function say(name, text){ return { say: name, text: text }; }
+  function firstOn(opts){ for (var i = 0; i < opts.length; i++) if (!opts[i].off) return i; return 0; }
+  function run(steps){ G.queue = steps.concat(G.queue); if (!G.step && !G.inStep) nextStep(); }
+  function nextStep(){
+    G.step = null; G.inStep = true;
+    while (G.queue.length && !G.step){
+      var s = G.queue.shift();
+      if (s.fn){ s.fn(); continue; }
+      G.step = s;
+      if (s.say) G.ui = { name: s.say, text: s.text, shown: 0, col: TALK_COLS[s.say], face: TALK_FACES[s.say] };
+      else if (s.menu) G.ui = { name: s.name, text: s.menu, bill: s.bill, opts: s.opts, sel: firstOn(s.opts), col: TALK_COLS[s.name] };
+      else G.ui = null;
+      if (s.wait) s.t = s.wait;
+    }
+    if (!G.step) G.ui = null;
+    G.uiRev++; G.inStep = false;
+  }
+  G.choose = function(i){
+    var s = G.step;
+    if (!s || !s.menu) return;
+    var o = s.opts[i];
+    if (!o) return;
+    if (o.off){ G.ui.sel = i; tone(150, 0.15, 'square', 0.05); return; }
+    sfx.tick();
+    s.pick(o.id);
+    nextStep();
+  };
+
+  /* ---------- who's on the court ---------- */
+  function setTeam(ka, kb){
+    A1.kind = ka; A2.kind = kb;
+    [A1, A2].forEach(function(a){ a.hide = false; a.snow = mkSnow(); a.meter = null; a.dunk = null; a.picked = 0; a.h = 0; a.vh = 0; });
+  }
+  function homeSpots(){
+    var S = [[190, 130], [140, 70], [270, 90], [290, 170]];
+    P.forEach(function(a, i){ a.x = S[i][0]; a.z = S[i][1]; a.h = 0; a.vh = 0; a.vx = a.vz = 0; a.face = i < 2 ? 1 : -1; a.meter = null; a.dunk = null; a.picked = 0; a.walkTo = null; a.tx = null; });
+  }
+  function toBench(ka, kb){
+    [ka, kb].forEach(function(k){ var b = mk(k, 1, 0, 0); b.react = 0; b.word = ''; b.face = 1; G.bench.push(b); });
+    G.bench.forEach(function(b, i){ b.x = 96 + i * 24; });
+  }
+  function benchReact(good){
+    G.bench.forEach(function(b){
+      b.react = rand(0.7, 1.1); b.cheer = Math.random() < 0.5;
+      b.word = b.cheer ? pick(['YEAH!', 'NICE!', 'WOO!', 'OOH!']) : pick(['UGH', 'BOO', 'NOO', 'HMPH']);
+    });
+  }
+
+  /* ---------- the ball ---------- */
+  function give(a){
+    if (ball.holder && ball.holder !== a) ball.holder.meter = null;
+    if (poss() !== a.team) G.clock = JAM_CLOCK;
+    ball.holder = a; ball.st = 'held'; ball.team = a.team; ball.passTo = null; ball.clean = false; ball.slam = false; a.think = rand(0.3, 0.8) * (K(a).think || 1); a.tx = null;
+    if (a === me) G.meter = null;
+  }
+  function shoot(a, pw){
+    if (a === me && G.magic){ magicShot(); return; }
+    var hk = attackHoop(a.team), dx = JAM_HX[hk] - a.x, dz = JAM_HZ - a.z, d = hyp(dx, dz) || 1, v = 165 + pw * 105, hv = v * Math.cos(ANG);
+    ball.holder = null; ball.st = 'shot'; ball.shooter = a; ball.team = a.team; ball.three = d > JAM_3PT; ball.age = 0; ball.rim = false; ball.clean = false; ball.slam = false;
+    ball.x = a.x + dx / d * 3; ball.z = a.z + dz / d * 3; ball.h = a.h + K(a).rel;
+    ball.vx = dx / d * hv; ball.vz = dz / d * hv; ball.vh = v * Math.sin(ANG);
+    ball.noPick = a; ball.noPickT = 0.4;
+    a.meter = null; if (a === me) G.meter = null;
+    a.face = dx > 0 ? 1 : -1;
+    sfx.dribble();
+  }
+  // the special drink: every shot of yours finds the net (a clean arc right down through the rim)
+  function magicShot(){
+    var hk = 1, hx = JAM_HX[hk], dx = hx - me.x, dz = JAM_HZ - me.z, d = hyp(dx, dz) || 1, h0 = me.h + K(me).rel;
+    var rise = Math.max(0, JAM_RIM + 14 - h0), T = Math.max(0.55 + d / 420, Math.sqrt(2 * rise / BALL_G) * 1.25 + 0.15);
+    ball.holder = null; ball.st = 'shot'; ball.shooter = me; ball.team = 0; ball.three = d > JAM_3PT; ball.age = 0; ball.rim = false; ball.clean = true; ball.slam = false;
+    ball.x = me.x; ball.z = me.z; ball.h = h0;
+    ball.vx = dx / T; ball.vz = dz / T; ball.vh = (JAM_RIM - 1 - h0 + 0.5 * BALL_G * T * T) / T;
+    ball.noPick = me; ball.noPickT = 0.4;
+    G.meter = null; me.meter = null; me.face = dx > 0 ? 1 : -1;
+    burst(G.parts, me.x, JAM_TOP + me.z / JAM_ZK - me.h - 18, 12, MAGIC_COLS, 50, 0, 0.6);
+    tone(990, 0.12, 'square', 0.04, 600);
+  }
+  function pass(a, to){
+    var lead = 0.25, tx = to.x + to.vx * lead, tz = to.z + to.vz * lead, d = hyp(tx - a.x, tz - a.z), T = clamp(d / 260, 0.2, 0.8);
+    ball.holder = null; ball.st = 'pass'; ball.passTo = to; ball.team = a.team; ball.tried = []; ball.clean = false;
+    ball.x = a.x; ball.z = a.z; ball.h = 14; ball.vx = (tx - a.x) / T; ball.vz = (tz - a.z) / T; ball.vh = 0.5 * BALL_G * T;
+    ball.noPick = a; ball.noPickT = 0.25;
+    a.meter = null; if (a === me) G.meter = null;
+    tone(500, 0.06, 'square', 0.03, 200);
+  }
+  function layup(a){
+    var hk = attackHoop(a.team), dk = !!K(a).dunker || (a === me && !!G.magic);
+    a.dunk = { t: 0, T: 0.6, x0: a.x, z0: a.z, hk: hk, done: false, dunk: dk, make: dk || Math.random() < (K(a).layup || 0.85) };
+    a.meter = null; if (a === me) G.meter = null;
+  }
+  function stepDunk(a, dt){
+    var D = a.dunk, hx = JAM_HX[D.hk], k;
+    D.t += dt; k = Math.min(1, D.t / D.T);
+    var ex = hx - (D.hk ? 1 : -1) * (D.dunk ? 3 : 9), mk2 = Math.min(1, k * 1.6);
+    a.x = D.x0 + (ex - D.x0) * mk2; a.z = D.z0 + (JAM_HZ - D.z0) * mk2;
+    a.h = Math.sin(Math.PI * k) * (D.dunk ? JAM_RIM - 20 : 26) + (D.slam ? Math.sin(Math.PI * k) * 14 : 0); a.vx = a.vz = 0; a.face = hx > a.x ? 1 : -1;
+    if (D.slam && Math.random() < dt * 30) burst(G.parts, a.x, JAM_TOP + a.z / JAM_ZK - a.h - 10, 2, MAGIC_COLS, 30, 0, 0.5);
+    if (!D.done && k >= 0.5){
+      D.done = true;
+      ball.holder = null; ball.shooter = a; ball.team = a.team; ball.three = false; ball.age = 0; ball.noPick = a; ball.noPickT = 0.3; ball.clean = !!D.slam; ball.slam = !!D.slam;
+      if (D.make){
+        ball.st = 'shot'; ball.x = hx; ball.z = JAM_HZ; ball.h = JAM_RIM + 3; ball.vx = 0; ball.vz = 0; ball.vh = -40;
+        if (D.slam){ addCheer(G.pops, W / 2, 30, 'MAGIC SLAM!!'); G.shake = 0.6; tone(80, 0.3, 'sawtooth', 0.06, -30); burst(G.parts, hx, JAM_TOP + JAM_HZ / JAM_ZK - JAM_RIM, 26, MAGIC_COLS, 70, 30, 0.9); }
+        else if (D.dunk){ addCheer(G.pops, W / 2, 34, a === me ? 'SLAM!!' : (a.kind === 'king' ? 'KING SLAM!!' : 'FROSTY SLAM!!')); G.shake = 0.5; tone(80, 0.3, 'sawtooth', 0.06, -30); }
+      } else {
+        ball.st = 'shot'; ball.x = hx + (D.hk ? -1 : 1) * 10; ball.z = JAM_HZ + rand(-20, 20); ball.h = JAM_RIM + 4; ball.vx = (D.hk ? -1 : 1) * 30; ball.vz = rand(-30, 30); ball.vh = 60; ball.rim = true;
+        sfx.rim();
+      }
+    }
+    if (k >= 1){ a.h = 0; a.dunk = null; }
+  }
+  function scored(k){
+    var team = ball.team, pts = ball.slam ? 1 : (ball.three ? 3 : 2), who = ball.shooter;
+    G.pts[team] += pts; ball.st = 'dead'; G.deadT = 1.2; G.netT = 0.5; G.netK = k;
+    if (team === 0) G.score += pts;
+    if (team === 0){ addCheer(G.pops, W / 2, 30); benchReact(); }
+    else addCheer(G.pops, W / 2, 30, nm(who) + ' SCORES!');
+    addPop(G.pops, W / 2, 46, nm(who) + ' +' + pts + (ball.slam ? '  MAGIC!' : (ball.three ? '  THREE!' : '')), JAM_TEAM_COL[team], true);
+    sfx.swish();
+    if (G.pts[team] >= G.target || G.sudden){ endMatch(team === 0); return; }
+    // the magic: your shot goes in, then you fly up and slam it back through
+    if (team === 0 && who === me && G.magic && !ball.slam){ G.slamT = 0.3; G.deadT = 0; }
+  }
+  function turnover(text){
+    addPop(G.pops, W / 2, 40, text, '#f86060', true);
+    tone(220, 0.25, 'square', 0.05, -100);
+    inbound(1 - poss());
+  }
+  function inbound(team){
+    var a = team === 0 ? me : A2, k = team === 0 ? 0 : 1, dir = k ? -1 : 1;
+    if (team === 0 && dist(dre, { x: JAM_HX[0], z: JAM_HZ }) < dist(me, { x: JAM_HX[0], z: JAM_HZ })) a = dre;
+    if (team === 1 && dist(A1, { x: JAM_HX[1], z: JAM_HZ }) < dist(A2, { x: JAM_HX[1], z: JAM_HZ })) a = A1;
+    a.x = JAM_HX[k] + dir * 22; a.z = JAM_HZ + rand(-40, 40); a.h = 0; a.dunk = null;
+    give(a);
+    G.clock = JAM_CLOCK;
+  }
+  function stepBall(dt){
+    var b = ball, i, k;
+    b.noPickT -= dt;
+    if (b.holder){
+      var a = b.holder, f = a.face;
+      if (a.meter || a.dunk || (a === me && G.meter)){ b.x = a.x + f * 2; b.z = a.z; b.h = a.h + K(a).rel + 4; }
+      else if (a.h > 0){ b.x = a.x + f * 5; b.z = a.z + 1; b.h = a.h + 10; }
+      else {
+        a.dp += dt * (Math.abs(a.vx) + Math.abs(a.vz) > 5 ? 9 : 6);
+        b.x = a.x + f * (K(a).dx || 6); b.z = a.z + 2; b.h = BR + Math.abs(Math.sin(a.dp)) * (a.kind === 'snow' ? 9 : 8);
+      }
+      return;
+    }
+    b.age += dt;
+    for (var s = 0; s < 3; s++){
+      var h = dt / 3, ph = b.h;
+      b.vh -= BALL_G * h; b.x += b.vx * h; b.z += b.vz * h; b.h += b.vh * h;
+      for (k = 0; k < 2; k++){
+        var hx = JAM_HX[k], bx = hx + (k ? 9 : -9);
+        if (b.vh < 0 && ph >= JAM_RIM && b.h < JAM_RIM){
+          var dd = hyp(b.x - hx, b.z - JAM_HZ);
+          if (dd < JAM_RR - 2 && b.st !== 'dead'){ scored(k); b.vx *= 0.2; b.vz *= 0.2; }
+          else if (dd < JAM_RR + BR + 1 && b.st !== 'dead' && !b.clean){
+            var nx = (b.x - hx) / (dd || 1), nz = (b.z - JAM_HZ) / (dd || 1), vn = b.vx * nx + b.vz * nz;
+            b.vx -= 1.6 * vn * nx; b.vz -= 1.6 * vn * nz; b.vh = Math.abs(b.vh) * 0.35 + 10; b.h = JAM_RIM + 0.1;
+            b.vx += nx * 25; b.vz += nz * 25;
+            if (!b.rim){ b.rim = true; G.clock = JAM_CLOCK; }
+            if (G.rimSnd <= 0){ sfx.rim(); G.rimSnd = 0.15; }
+          }
+        }
+        if (!b.clean && Math.abs(b.z - JAM_HZ) < 26 && b.h > JAM_RIM - 2 && b.h < JAM_RIM + 28 && ((k === 0 && b.x < bx + BR && b.vx < 0 && b.x > bx - 6) || (k === 1 && b.x > bx - BR && b.vx > 0 && b.x < bx + 6))){
+          b.x = bx + (k ? -BR : BR); b.vx = -b.vx * 0.55; sfx.board();
+        }
+      }
+      if (b.h < BR){
+        b.h = BR;
+        if (b.st === 'shot' || b.st === 'pass') b.st = 'loose';
+        b.clean = false;
+        if (b.vh < -30){ b.vh = -b.vh * 0.55; if (b.st !== 'dead') sfx.bounce(0.03); } else b.vh = 0;
+        b.vx *= Math.pow(0.4, h); b.vz *= Math.pow(0.4, h);
+      }
+      if (b.x < 6 || b.x > JAM_L - 6){ b.x = clamp(b.x, 6, JAM_L - 6); b.vx = -b.vx * 0.4; }
+      if (b.z < 8 || b.z > JAM_ZR - 8){ b.z = clamp(b.z, 8, JAM_ZR - 8); b.vz = -b.vz * 0.4; }
+    }
+    if (b.st === 'dead') return;
+    if (b.st === 'shot' && b.age < 0.5 && !b.clean){
+      for (i = 0; i < P.length; i++){
+        var d0 = P[i];
+        if (d0.team === b.team || d0.h < 6 || d0.dunk) continue;
+        if (hyp(b.x - d0.x, b.z - d0.z) < 11 && b.h < d0.h + K(d0).rel + 18 && b.h > d0.h + 6){
+          b.st = 'loose'; b.vx *= -0.4; b.vz = rand(-60, 60); b.vh = 50; b.team = d0.team;
+          addCheer(G.pops, W / 2, 34, d0.kind === 'king' ? 'ROYAL REJECTION!' : pick(['BLOCKED!', 'REJECTED!', 'NOT IN HERE!']));
+          tone(140, 0.15, 'square', 0.05, -60); G.shake = 0.3;
+          break;
+        }
+      }
+    }
+    if (b.st === 'pass'){
+      var r = b.passTo;
+      if (dist(b, r) < 10 && b.h < 30){ give(r); return; }
+      var fs = foes(r);
+      for (i = 0; i < fs.length; i++){
+        var o = fs[i];
+        if (b.tried.indexOf(o) < 0 && dist(b, o) < 8 && b.h < 26){
+          b.tried.push(o);
+          if (Math.random() < (b.team === 1 ? 0.18 : 0.3)){ give(o); addCheer(G.pops, W / 2, 34, 'PICKED OFF!'); return; }
+        }
+      }
+    }
+    if (b.st === 'loose' && b.h < 18){
+      for (i = 0; i < P.length; i++){
+        var q = P[i];
+        if (q.dunk || (b.noPick === q && b.noPickT > 0)) continue;
+        if (dist(b, q) < 11){ if (poss() !== q.team && q.team !== b.team) addPop(G.pops, W / 2, 40, 'REBOUND!', JAM_TEAM_COL[q.team]); give(q); return; }
+      }
+    }
+  }
+  function closestFoe(a){ var best = null; foes(a).forEach(function(o){ if (!best || dist(o, a) < dist(best, a)) best = o; }); return best; }
+  function checkPick(dt){
+    G.pickCD -= dt;
+    if (ball.holder !== me || G.pickCD > 0 || dist(me, dre) > 16) return;
+    var md = closestFoe(me);
+    if (!md || dist(md, me) > 34 || md.picked > 0) return;
+    G.pickCD = 4; md.picked = md.kind === 'king' ? 1.1 : 1.6; md.vx = md.vz = 0; md.meter = null;
+    addCheer(G.pops, W / 2, 34, 'PICK!');
+    addPop(G.pops, W / 2, 50, nm(md) + ' IS STUCK! SHOOT!', '#58f878');
+    tone(110, 0.15, 'square', 0.06, -40); hiss(0.1, 0.05, 900);
+  }
+  function trySteal(a){
+    var hd = ball.holder;
+    if (!hd || hd.team === a.team || a.stealCD > 0 || dist(a, hd) > 14 || hd.dunk) return false;
+    a.stealCD = 0.7;
+    if (hd.meter || (hd === me && G.meter)) return false;              // you can't strip a shooter
+    if (Math.random() < K(a).steal * (K(hd).secure || (hd.team === 1 ? 0.45 : 1))){ give(a); addCheer(G.pops, W / 2, 34, a.team === 0 ? 'STEAL!' : 'STOLEN!'); tone(900, 0.1, 'square', 0.04, 600); return true; }
+    tone(300, 0.06, 'square', 0.03); return false;
+  }
+
+  /* ---------- the players that run themselves ---------- */
+  function moveTo(a, tx, tz, sp){
+    var dx = tx - a.x, dz = tz - a.z, d = hyp(dx, dz);
+    if (d < 3){ a.vx = 0; a.vz = 0; return; }
+    a.vx = dx / d * sp; a.vz = dz / d * sp;
+  }
+  function brain(a, dt){
+    if (a.picked > 0){ a.picked -= dt; a.vx = a.vz = 0; return; }
+    var k = K(a), sp = k.speed, hk = attackHoop(a.team), hx = JAM_HX[hk], dir = hk ? 1 : -1, b = ball;
+    var dh = hyp(hx - a.x, JAM_HZ - a.z), pt = poss();
+    if (b.holder === a){
+      if (a.meter){ a.vx = a.vz = 0; a.meter.p += dt / 0.9; if (a.meter.p >= a.target) shoot(a, a.meter.p); return; }
+      var nd = 1e9; foes(a).forEach(function(o){ nd = Math.min(nd, dist(a, o)); });
+      var m = mate(a);
+      if (dh < (k.dunker ? 40 : 28)){ layup(a); return; }
+      if (a === dre && G.clock > 1 && !me.dunk){
+        var mh = hyp(hx - me.x, JAM_HZ - me.z), md2 = closestFoe(me), myD = md2 ? dist(md2, me) : 99, defH = md2 ? hyp(hx - md2.x, JAM_HZ - md2.z) : 999;
+        if (mh + 10 < dh && mh + 8 < defH && myD > 16 && mh < 150 && Math.random() < dt * 4){ addPop(G.pops, W / 2, 40, 'DRE FINDS YOU!', '#f8a040'); pass(a, me); return; }
+      }
+      a.think -= dt;
+      var rng = k.range || 150;
+      var open = nd > (k.open || 11), late = G.clock < 6 || (a.team === 1 && G.left < 15 && G.pts[1] < G.pts[0]);
+      var contest = !open && a.team === 1 && dh < 125 && Math.random() < dt * (k.contest || 1.4);   // they'll shoot over you, too
+      if (a.think <= 0 && dh > 34 && dh < 150 && (open || late || contest) && (dh < rng || G.clock < 5)){
+        var pw = jamPower(dh, a.h + k.rel);
+        if (pw >= 0){ a.target = clamp(pw + gauss() * k.err * (open ? 1 : 1.5) * (a.team === 1 ? [1.3, 1.1, 1, 0.8][G.match - 1] || 1 : 1), 0.02, 1); a.meter = { p: 0, dir: 1 }; a.face = dir; a.vx = a.vz = 0; return; }
+      }
+      if (((nd < 10 && Math.random() < dt * 0.6) || (a === dre && G.callT > 0)) && G.clock > 1){ G.callT = 0; pass(a, m); return; }
+      if (a.tx == null) a.tx = hx - dir * (k.dunker && a.kind === 'bear' ? 10 : (k.dunker ? rand(10, 100) : rand(60, 115)));
+      a.tz = a.tz == null ? a.z : a.tz;
+      if (Math.random() < dt * 0.5) a.tz = clamp(JAM_HZ + rand(-80, 80), 20, JAM_ZR - 20);
+      moveTo(a, a.tx, a.tz, sp * 0.95);
+      a.face = a.vx ? sgn(a.vx) : dir;
+    } else if (pt === a.team || (b.st === 'shot' && b.team === a.team && b.age < 0.3)){
+      if (a === dre && b.holder === me && G.pickCD <= 0){
+        var md = closestFoe(me);
+        if (md && dist(md, me) < 24){
+          var ux2 = md.x - me.x, uz2 = md.z - me.z, ud2 = hyp(ux2, uz2) || 1;
+          moveTo(a, me.x + ux2 / ud2 * 12, me.z + uz2 / ud2 * 12, k.speed);
+          a.face = md.x > a.x ? 1 : -1;
+          return;
+        }
+      }
+      var hold = b.holder || b.passTo || me;
+      moveTo(a, hx - dir * a.wing, hold.z > JAM_HZ ? 50 : JAM_ZR - 50, sp * 0.85);
+      if (Math.random() < dt * 0.2) a.wing = rand(60, 120);
+      a.face = a.vx ? sgn(a.vx) : dir;
+    } else if (b.st === 'loose' || b.st === 'shot'){
+      var m2 = mate(a);
+      if (b.st === 'loose' || b.age > 0.6){
+        if (dist(a, b) <= dist(m2, b) || m2 === me) moveTo(a, b.x, b.z, sp);
+        else moveTo(a, (JAM_HX[1 - hk] + JAM_L / 2) / 2, JAM_HZ, sp * 0.8);
+      } else moveTo(a, JAM_HX[1 - hk] - (hk ? 1 : -1) * -40, JAM_HZ + (a === A2 ? 40 : -40), sp * 0.8);
+      a.face = a.vx ? sgn(a.vx) : a.face;
+    } else if (b.st === 'dead'){
+      a.vx = a.vz = 0;
+    } else {
+      var man = a.man, dk = 1 - hk, gx = JAM_HX[dk], ux = gx - man.x, uz = JAM_HZ - man.z, ud = hyp(ux, uz) || 1;
+      moveTo(a, man.x + ux / ud * 12, man.z + uz / ud * 12, sp);
+      a.face = man.x > a.x ? 1 : -1;
+      if (b.holder === man && dist(a, man) < 14 && Math.random() < dt * (man === me ? 0.45 : 0.8)) trySteal(a);
+      if (b.holder === man && (man.meter || (man === me && G.meter)) && dist(a, man) < 18 && a.h === 0 && Math.random() < dt * (a.team === 0 ? 1.5 : 4)) a.vh = 210;
+    }
+  }
+
+  /* ---------- King Hooper in his courtside seat, and Carl with the cooler cart ---------- */
+  var king = { x: -40, z: 4, face: 1, walkTo: null, anim: 0, seat: 262, on: true };
+  var carl = { x: JAM_L + 60, z: 2, face: -1, walkTo: null, anim: 0, home: JAM_L - 90 };
+  function kingTrumpets(){ var n = [392, 392, 523, 659, 784], d = [0.12, 0.12, 0.25, 0.25, 0.6], at = 0; for (var i = 0; i < n.length; i++){ tone(n[i], d[i], 'sawtooth', 0.045, 0, at); tone(n[i] / 2, d[i], 'square', 0.03, 0, at); at += d[i] + 0.03; } }
+  function squawk(){ tone(1400, 0.12, 'sawtooth', 0.04, -600); tone(1700, 0.15, 'sawtooth', 0.04, -900, 0.14); }
+
+  /* ---------- the matches ---------- */
+  function startMatch(n){
+    G.match = n; G.half = 1; G.sudden = false; G.pts = [0, 0]; G.left = BR_MATCH; G.target = n === 4 ? 21 : 11;
+    G.score = G.matchScore0; G.slamT = 0;
+    homeSpots(); give(me); ball.st = 'held'; G.clock = JAM_CLOCK; G.deadT = 0;
+    G.phase = 'play';
+    addCheer(G.pops, W / 2, 40, n === 4 ? 'THE FINAL!' : 'MATCH ' + n + '!');
+    addPop(G.pops, W / 2, 56, n === 4 ? 'FIRST TO 21  -  TWO 1 MINUTE HALVES' : 'FIRST TO 11 OR AHEAD AFTER 1 MINUTE', '#fcfcfc');
+    sfx.bonus();
+  }
+  function stopAll(){
+    G.phase = 'story'; G.meter = null; G.slamT = 0;
+    P.forEach(function(a){ a.meter = null; a.vx = a.vz = 0; });
+  }
+  function timeUp(){
+    if (G.match === 4 && G.half === 1){ halftime(); return; }
+    if (G.pts[0] === G.pts[1]){
+      G.sudden = true; G.left = 0;
+      addCheer(G.pops, W / 2, 36, 'SUDDEN DEATH!');
+      addPop(G.pops, W / 2, 52, 'NEXT BASKET WINS', '#fcfcfc', true);
+      tone(660, 0.2, 'square', 0.05); tone(660, 0.3, 'square', 0.05, 0, 0.25);
+      return;
+    }
+    endMatch(G.pts[0] > G.pts[1]);
+  }
+  function endMatch(win){
+    var n = G.match;
+    stopAll();
+    addPop(G.pops, W / 2, 40, win ? 'YOU WIN!' : 'THEY WIN...', win ? '#58f878' : '#f86060', true);
+    if (win) sfx.fanfare(); else sfx.over();
+    var A = nm(A1), B = nm(A2);
+    if (!win){
+      run([{ wait: 1.6 },
+        say(A, pick(["RUN IT BACK? WE'LL BEAT YOU AGAIN.", 'ONE MORE TIME? SURE. RUN IT BACK!', "THAT'S HOW WE DO IT. RUN IT BACK!"])),
+        say('DRE', "WE GOT THIS. RUN IT BACK!"),
+        { fn: function(){ startMatch(n); } }]);
+      return;
+    }
+    G.score += 10 * n; G.matchScore0 = G.score;
+    addPop(G.pops, W / 2, 56, 'MATCH BONUS +' + (10 * n), '#f8d800', true);
+    if (n === 4){ champions(); return; }
+    var lines = {
+      1: [say('FROSTY', "WE GOT BEAT... AGAIN?"), say('MR. FIRE', "THAT ONE STINGS. I'M GOING TO GO SIT IN THE COLD.")],
+      2: [say('KAI', 'NO WAY, BRAH. YOU TWO ARE LEGIT.'), say('LEI', 'ALOHA... WE WILL CHEER FOR YOU.')],
+      3: [say('NEIGHTHAN', 'NEIGHHH! IMPOSSIBLE! ON MY PLANET I NEVER LOSE.'), say('BOLT', 'ERROR. ERROR. RECALCULATING... CONGRATULATIONS.')]
+    }[n];
+    run([{ wait: 1.6 }].concat(lines, [
+      { fn: function(){ toBench(A1.kind, A2.kind); A1.hide = A2.hide = true; addPop(G.pops, W / 2, 46, 'TO THE BENCH!', '#fcfcfc'); } }, { wait: 0.6 }],
+      introMatch(n + 1)));
+  }
+  function walkIn(ka, kb){
+    setTeam(ka, kb);
+    A1.x = JAM_L + 30; A2.x = JAM_L + 46; A1.z = 90; A2.z = 170; A1.walkTo = 270; A2.walkTo = 290; A1.face = A2.face = -1;
+  }
+  function introMatch(n){
+    if (n === 2) return [{ fn: function(){ walkIn('kai', 'lei'); } }, { wait: 2.6 },
+      say('KAI', 'ALOHA! WE SURFED ALL THE WAY OVER HERE.'),
+      say('LEI', "AND WE DON'T STOP SHOOTING. HOPE YOU'RE READY!"),
+      say('DRE', 'BRING IT.'),
+      { fn: function(){ startMatch(2); } }];
+    if (n === 3) return [{ fn: function(){ walkIn('neigh', 'bolt'); } }, { wait: 2.6 },
+      say('NEIGHTHAN', 'GREETINGS, HUMANS. I HAVE BROUGHT A FRIEND FROM THE CYBER WORLD.'),
+      say('BOLT', 'BEEP BOOP. PROBABILITY OF YOUR VICTORY: 2%.'),
+      say('YOU', "WE'LL TAKE THOSE ODDS."),
+      { fn: function(){ startMatch(3); } }];
+    return finalIntro();
+  }
+  function finalIntro(){
+    var pool = ['bear', 'snow', 'kai', 'lei', 'neigh', 'bolt'], partner = pick(pool);
+    return [{ fn: function(){ G.darkTo = 0.4; kingTrumpets(); G.shake = 0.4; king.walkTo = 240; } }, { wait: 1.6 },
+      { fn: function(){ king.face = -1; } },
+      say('KING HOOPER', 'WELL, WELL. YOU BEAT EVERY TEAM IN MY KINGDOM.'),
+      say('KING HOOPER', 'NOW YOU PLAY ME. AND I NEED A PARTNER...'),
+      { fn: function(){ squawk(); G.bench.forEach(function(b){ b.react = 1.2; b.cheer = true; b.word = 'ME! ME!'; }); } },
+      say('KING HOOPER', 'I CHOOSE...'),
+      { fn: function(){
+        G.partner = partner;
+        G.bench = G.bench.filter(function(b){ return b.kind !== partner; });
+        G.bench.forEach(function(b, i){ b.x = 96 + i * 24; });
+        tone(784, 0.1, 'square', 0.05); tone(1047, 0.2, 'square', 0.05, 0, 0.1);
+      } },
+      say('KING HOOPER', BR_KIND[partner].name + '!'),
+      say(partnerTalk(partner), { bear: 'BEAR BALL, BABY! LET\'S GO!', snow: "MR. FIRE IS BACK. AND I'M HEATED.", kai: 'SHAKA! THE KING AND ME!', lei: "LET'S SHOW THEM HOW IT'S DONE!", neigh: 'NEIGH! A ROYAL TEAM-UP!', bolt: 'UPGRADING TO KING MODE. BEEP.' }[partner]),
+      { fn: function(){
+        king.on = false; king.x = -60; G.darkTo = 0;
+        setTeam('king', partner); A1.x = 240; A1.z = 90; A2.x = JAM_L + 40; A2.z = 170; A2.walkTo = 290; A1.face = A2.face = -1;
+        G.parrot = { st: 'fly', x: 240, y: JAM_TOP + 90 / JAM_ZK - 34, t: 0, f: 0 };
+        squawk();
+      } }, { wait: 2.2 },
+      say('KING HOOPER', 'FIRST TO 21. TWO HALVES. DO NOT HOLD BACK.'),
+      say('DRE', "THIS IS IT. LET'S WIN THE WHOLE THING!"),
+      { fn: function(){ startMatch(4); } }];
+  }
+  function partnerTalk(k){ return BR_KIND[k].name; }
+
+  /* ---------- halftime of the final: Carl rolls out the cooler ---------- */
+  function halftime(){
+    stopAll();
+    addCheer(G.pops, W / 2, 36, 'HALFTIME!');
+    addPop(G.pops, W / 2, 52, 'YOU ' + G.pts[0] + ' - ' + G.pts[1] + ' THEM', '#fcfcfc', true);
+    sfx.bonus();
+    run([{ wait: 1.4 },
+      { fn: function(){ homeSpots(); ball.holder = A1; ball.st = 'held'; carl.walkTo = me.x + 34; } }, { wait: 2.4 },
+      { fn: function(){ carl.face = -1; me.face = 1; } },
+      say('CARL', "HALFTIME! YOU LOOK THIRSTY. ICE COLD DRINKS RIGHT HERE."),
+      { name: 'CARL', menu: 'WANT AN ENERGY DRINK?', bill: [['ENERGY DRINK', 10]], opts: [
+        { id: 'yes', label: 'YES PLEASE', sub: '$10.00' },
+        { id: 'no', label: 'NO THANKS', sub: 'JUST PLAY' }],
+        pick: function(id){ run(id === 'yes' ? [tipMenu()] : [say('CARL', 'SUIT YOURSELF. GOOD LUCK!'), { fn: secondHalf }]); } }]);
+  }
+  function tipMenu(){
+    return { name: 'CARL', menu: 'ADD A TIP?', bill: [['ENERGY DRINK', 10]], opts: [
+      { id: 0, label: 'NO TIP', sub: usd(10) },
+      { id: 15, label: '15% TIP', sub: usd(11.5) },
+      { id: 20, label: '20% TIP', sub: usd(12) }],
+      pick: function(tip){
+        coinSnd();
+        var talk = tip === 20 ? [say('CARL', '20%? YOU REMEMBERED!'), say('CARL', 'FOR YOU... THE SPECIAL ENERGY DRINK.'), say('CARL', 'GO GET THAT CROWN.')]
+          : (tip === 15 ? [say('CARL', 'THANKS! GO GET HIM.')] : [say('CARL', '...OKAY THEN.')]);
+        run(talk.concat([
+          { fn: function(){ G.drinkT = 1.8; G.drinkKind = tip === 20 ? 'magic' : 'can'; addPop(G.pops, W / 2, 40, 'GLUG GLUG GLUG', '#c8ecfc'); tone(220, 0.1, 'sine', 0.04, 60, 0.2); tone(220, 0.1, 'sine', 0.04, 60, 0.6); tone(220, 0.1, 'sine', 0.04, 60, 1.0); } }, { wait: 2 },
+          { fn: function(){ if (tip === 20) powerUp(); } }, { wait: tip === 20 ? 1.8 : 0.01 },
+          tip === 20 ? say('KING HOOPER', '...WAIT. IS THAT THE SPECIAL DRINK?!') : say('DRE', 'SECOND HALF. LOCK IN.'),
+          { fn: secondHalf }]));
+      } };
+  }
+  function powerUp(){
+    G.magic = { on: true };
+    addCheer(G.pops, W / 2, 34, 'MAGIC POWERS!!');
+    addPop(G.pops, W / 2, 50, 'EVERY SHOT GOES IN, THEN YOU', '#e0b0ff');
+    addPop(G.pops, W / 2, 60, 'FLY UP AND SLAM IT: +1!  UNLIMITED JUMPS', '#e0b0ff');
+    burst(G.parts, me.x, JAM_TOP + me.z / JAM_ZK - 12, 30, MAGIC_COLS, 80, 0, 1);
+    G.shake = 0.6;
+    sfx.fanfare();
+  }
+  function secondHalf(){
+    carl.walkTo = carl.home;
+    G.half = 2; G.left = BR_MATCH; G.phase = 'play'; G.sudden = false;
+    homeSpots(); inbound(1);
+    addCheer(G.pops, W / 2, 40, '2ND HALF!');
+    addPop(G.pops, W / 2, 56, 'FIRST TO 21', '#fcfcfc');
+    sfx.bonus();
+  }
+  function champions(){
+    G.magic = null;
+    run([{ wait: 1.6 },
+      { fn: function(){ fireworks(G.parts, 6); sfx.fanfare(); G.bench.forEach(function(b){ b.react = 3; b.cheer = true; b.word = 'WOOO!'; }); } }, { wait: 1 },
+      say('KING HOOPER', '...I HAVE NOT LOST IN A THOUSAND YEARS.'),
+      say('KING HOOPER', 'YOU TWO BEAT ME FAIR AND SQUARE.'),
+      { fn: function(){ squawk(); fireworks(G.parts, 5); } },
+      say('KING HOOPER', 'I FORGIVE YOU FOR BONKING MY PARROT. YOU ARE THE CHAMPIONS OF EVERY COURT!'),
+      say('DRE', 'CHAMPIONS!!! I TOLD YOU WE GOT THIS!'),
+      say('CARL', 'DRINKS ARE ON THE HOUSE TONIGHT!'),
+      { fn: function(){ fireworks(G.parts, 8); sfx.fanfare(); G.score += 25; G.clearText = 'CHAMPIONS!'; G.done = true; } }]);
+  }
+
+  /* ---------- the intro: the King announces the bracket ---------- */
+  run([{ wait: 0.6 },
+    { fn: function(){ kingTrumpets(); king.walkTo = 220; } }, { wait: 2.2 },
+    { fn: function(){ king.face = -1; } },
+    say('KING HOOPER', 'WELCOME... TO THE BRACKET MATCHES!'),
+    say('KING HOOPER', 'YOU AND DRE WILL FACE EVERY TEAM FROM MY COURTS. 2 ON 2.'),
+    say('KING HOOPER', 'FIRST TO 11, OR AHEAD WHEN THE MINUTE RUNS OUT. WIN THEM ALL... AND YOU FACE ME.'),
+    say('DRE', "LOSE ONE AND WE JUST RUN IT BACK. LET'S GO!"),
+    { fn: function(){ king.walkTo = king.seat; } },
+    say('FROSTY', 'REMEMBER US? FROZEN HOOPS CHAMPS!'),
+    say('MR. FIRE', "IT'S MR. FIRE NOW. NEW NAME. SAME ICE COLD DEFENSE."),
+    { fn: function(){ carl.walkTo = carl.home; } },
+    say('CARL', "I'LL BE OVER HERE WITH THE COOLER IF YOU NEED ME!"),
+    { fn: function(){ startMatch(1); } }]);
+
+  G.key = function(k){
+    var s = G.step;
+    if (s){
+      var go = k === 'a' || k === 'b' || k === 'start';
+      if (s.say){ if (go){ if (G.ui.shown < s.text.length) G.ui.shown = s.text.length; else { sfx.tick(); nextStep(); } } }
+      else if (s.menu){
+        var n = s.opts.length, d = (k === 'l' || k === 'u') ? -1 : ((k === 'r' || k === 'd') ? 1 : 0);
+        if (d){ for (var i = 1; i <= n; i++){ var j = (G.ui.sel + d * i + n * 2) % n; if (!s.opts[j].off){ G.ui.sel = j; break; } } sfx.tick(); }
+        else if (go) G.choose(G.ui.sel);
+      }
+      return true;
+    }
+    if (G.phase !== 'play') return true;
+    if (me.dunk || G.slamT > 0) return true;
+    var hk = attackHoop(0);
+    if (k === 'a'){
+      if (me.h === 0 || G.magic){ me.vh = 210; if (me.h > 0) burst(G.parts, me.x, JAM_TOP + me.z / JAM_ZK - me.h, 6, MAGIC_COLS, 30, 0, 0.4); }
+      return true;
+    }
+    if (k === 'c'){
+      if (ball.holder === me) pass(me, dre);
+      else if (ball.holder === dre){ G.callT = 0.6; addPop(G.pops, W / 2, 40, 'DRE!', '#f8a040'); }
+      return true;
+    }
+    if (k === 'b'){
+      if (ball.holder === me){
+        if (me.h === 0 && hyp(JAM_HX[hk] - me.x, JAM_HZ - me.z) < 30) layup(me);
+        else { G.meter = { p: 0, dir: 1, ideal: -1, aimT: 0 }; me.face = JAM_HX[hk] > me.x ? 1 : -1; aimMeter(0); }
+      } else if (!trySteal(me) && ball.holder && ball.holder.team === 1 && dist(me, ball.holder) > 14) addPop(G.pops, W / 2, 40, 'GET CLOSER TO STEAL', '#fcfcfc');
+      return true;
+    }
+    return k === 'u' || k === 'd';
+  };
+  function aimMeter(dt){
+    var m = G.meter;
+    if (!m || ((m.aimT -= dt) > 0)) return;
+    m.aimT = 0.1;
+    m.ideal = jamPower(hyp(JAM_HX[1] - me.x, JAM_HZ - me.z), me.h + K(me).rel);
+  }
+  function releaseShot(){
+    var m = G.meter, pw = m.p;
+    m.aimT = 0; aimMeter(0);
+    if (m.ideal >= 0){
+      var off = Math.abs(pw - m.ideal);
+      if (off < 0.07){ pw = m.ideal; addPop(G.pops, me.x > G.cam.x ? W / 2 + 40 : W / 2 - 40, 40, 'PERFECT!', '#58f878'); tone(1320, 0.08, 'square', 0.04); }
+      else if (off < 0.2) pw += (m.ideal - pw) * 0.6;
+    }
+    shoot(me, pw);
+  }
+  G.release = function(k){ if (k === 'shoot' && G.meter && ball.holder === me) releaseShot(); };
+  G.press = function(){};
+  G.usesPass = true;
+
+  function stepCrowd(dt){
+    // things flying over the arena, just for show: nene, drone birds and horse flies
+    if ((G.flyT -= dt) <= 0){
+      G.flyT = rand(5, 9);
+      var dir = Math.random() < 0.5 ? 1 : -1, kind = pick(['nene', 'nene', 'drone', 'fly']);
+      G.flyers.push({ kind: kind, dir: dir, x: dir > 0 ? JAM_BGX - 10 : JAM_BGX + JAM_BGW + 10, y0: rand(18, 70), y: 0, t: 0, f: 0, sp: kind === 'fly' ? 34 : (kind === 'drone' ? 60 : 46) });
+    }
+    G.flyers.forEach(function(f){ f.t += dt; f.f += dt * (f.kind === 'fly' ? 20 : 8); f.x += f.dir * f.sp * dt; f.y = f.y0 + Math.sin(f.t * (f.kind === 'fly' ? 5 : 2)) * (f.kind === 'fly' ? 4 : 6); });
+    G.flyers = G.flyers.filter(function(f){ return f.x > JAM_BGX - 20 && f.x < JAM_BGX + JAM_BGW + 20; });
+    G.bench.forEach(function(b){ if (b.react > 0) b.react -= dt; b.snow.dp += dt * 6; b.anim += dt * 6; b.snow.arms += ((b.react > 0 && b.cheer ? 1 : 0.2) - b.snow.arms) * Math.min(1, dt * 8); });
+    G.pigeons.forEach(function(q){ if ((q.peckT -= dt) <= 0){ q.peck = q.peck ? 0 : 1; q.peckT = q.peck ? 0.3 : rand(1, 4); } });
+    if (G.parrot){ G.parrot.t += dt; G.parrot.f += dt * 12; }
+  }
+  G.pigeons = [60, 92, 150, 310, 340, 372].map(function(x){ return { x: x, kind: Math.random() < 0.4 ? 1 : 0, face: Math.random() < 0.5 ? 1 : -1, peck: 0, peckT: rand(1, 4) }; });
+
+  G.update = function(dt){
+    var i, a;
+    G.t += dt; G.netT = Math.max(0, G.netT - dt); G.rimSnd -= dt; G.shake = Math.max(0, G.shake - dt); G.callT = Math.max(0, (G.callT || 0) - dt);
+    if (G.drinkT > 0) G.drinkT -= dt;
+    var s = G.step;
+    if (s){
+      if (s.say && G.ui) G.ui.shown += dt * 45;
+      else if (s.wait){ s.t -= dt; if (s.t <= 0) nextStep(); }
+    }
+    [king, carl].forEach(function(w){ if (w.walkTo != null){ var kd = w.walkTo - w.x; if (Math.abs(kd) < 1.5) w.walkTo = null; else { w.x += sgn(kd) * Math.min(Math.abs(kd), 60 * dt); w.face = sgn(kd); w.anim += dt * 10; } } });
+    P.forEach(function(q){ if (q.walkTo != null && G.phase !== 'play'){ var wd = q.walkTo - q.x; if (Math.abs(wd) < 2){ q.walkTo = null; q.vx = 0; } else q.vx = sgn(wd) * 70; } });
+    G.dark += ((G.darkTo || 0) - G.dark) * Math.min(1, dt * 2);
+    stepCrowd(dt);
+    if (G.phase === 'play'){
+      if (!me.dunk && !G.autoMe){
+        if (G.meter && ball.holder === me){
+          if (me.h === 0){ me.vx = me.vz = 0; }
+          G.meter.p += G.meter.dir * dt / (me.h > 0 ? 0.8 : 1.2);
+          aimMeter(dt);
+          if (G.meter.p >= 1){ G.meter.p = 1; G.meter.dir = -1; } else if (G.meter.p <= 0){ G.meter.p = 0; G.meter.dir = 1; }
+        } else {
+          var mx = (inp.r ? 1 : 0) - (inp.l ? 1 : 0), mz = (inp.d ? 1 : 0) - (inp.u ? 1 : 0), ml = hyp(mx, mz) || 1;
+          me.vx = mx / ml * K(me).speed; me.vz = mz / ml * K(me).speed;
+          if (mx) me.face = mx;
+        }
+      }
+      for (i = G.autoMe ? 0 : 1; i < P.length; i++) if (!P[i].dunk) brain(P[i], dt);
+      checkPick(dt);
+      // the magic slam: grab it under the net and fly back up
+      if (G.slamT > 0 && (G.slamT -= dt) <= 0){
+        G.slamT = 0;
+        give(me); me.h = 0; me.vh = 0;
+        me.dunk = { t: 0, T: 0.9, x0: me.x, z0: me.z, hk: 1, done: false, dunk: true, make: true, slam: true };
+        addPop(G.pops, W / 2, 56, 'FLY!', '#e0b0ff', true);
+        tone(400, 0.5, 'square', 0.04, 900);
+      }
+      if (G.deadT > 0){ G.deadT -= dt; if (G.deadT <= 0 && G.phase === 'play') inbound(1 - ball.team); }
+      if (G.phase === 'play' && poss() >= 0 && ball.st !== 'dead' && !me.dunk){
+        G.clock -= dt;
+        if (G.clock <= 0){ G.clock = JAM_CLOCK; turnover('SHOT CLOCK!'); }
+      }
+      // the game clock stops while a magic slam is happening
+      if (G.phase === 'play' && !G.sudden && !G.slamT && !(me.dunk && me.dunk.slam)){
+        G.left -= dt;
+        if (G.left <= 0){ G.left = 0; timeUp(); }
+      }
+    }
+    // the special drink sparkles around you
+    if (G.magic && (G.sparkT -= dt) <= 0){ G.sparkT = 0.08; G.parts.push({ x: me.x + rand(-6, 6), y: JAM_TOP + me.z / JAM_ZK - me.h - rand(2, 20), vx: rand(-8, 8), vy: rand(-20, -6), g: 0, life: 0.6, c: pick(MAGIC_COLS) }); }
+    for (i = 0; i < P.length; i++){
+      a = P[i];
+      a.stealCD -= dt;
+      if (a.dunk){ stepDunk(a, dt); continue; }
+      if (a.hide) continue;
+      var walking = a.walkTo != null;
+      a.x = clamp(a.x + a.vx * dt, walking ? -50 : 4, walking ? JAM_L + 50 : JAM_L - 4);
+      a.z = clamp(a.z + a.vz * dt, 6, JAM_ZR - 6);
+      if (a.h > 0 || a.vh > 0){ a.vh -= 520 * dt; a.h += a.vh * dt; if (a.h <= 0){ a.h = 0; a.vh = 0; } }
+      if (Math.abs(a.vx) + Math.abs(a.vz) > 5) a.anim += dt * 10;
+      a.snow.vx = a.vx; a.snow.face = a.face; a.snow.dp += dt * 6; a.snow.walk += dt * hyp(a.vx, a.vz) * 0.5;
+      a.snow.arms += ((a.meter || a.h > 0 ? 1 : 0.2) - a.snow.arms) * Math.min(1, dt * 8);
+    }
+    if (G.phase === 'play' || ball.st !== 'held') stepBall(dt);
+    stepFx(G.parts, G.pops, dt);
+    var x0 = ball.x, x1 = ball.x;
+    P.forEach(function(q){ if (!q.hide && q.x > -20 && q.x < JAM_L + 20){ x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); } });
+    if (G.phase !== 'play'){ [king, carl].forEach(function(w){ if (w.x > 0 && w.x < JAM_L){ x0 = Math.min(x0, w.x); x1 = Math.max(x1, w.x); } }); }
+    var zt = clamp(W / (x1 - x0 + 90), W / (JAM_L + 70), 1.25), ht = W / zt / 2, vt = H / zt / 2;
+    var cxT = clamp((x0 + x1) / 2, JAM_BGX + ht, JAM_BGX + JAM_BGW - ht);
+    if (ht * 2 >= JAM_BGW) cxT = JAM_BGX + JAM_BGW / 2;
+    var top = Math.min(JAM_TOP + JAM_HZ / JAM_ZK - JAM_RIM - 30, JAM_TOP + ball.z / JAM_ZK - ball.h - 16), bot = JAM_TOP + JAM_ZR / JAM_ZK + 14;
+    var cyT = clamp((top + bot) / 2, vt, JAM_BGH - vt);
+    var cam = G.cam, kk = Math.min(1, dt * 2.5);
+    cam.z += (zt - cam.z) * kk; cam.x += (cxT - cam.x) * kk; cam.y += (cyT - cam.y) * kk;
+  };
+
+  function camXf(v){
+    var cam = G.cam, k = v.S * v.dpr;
+    v.c.setTransform(k * cam.z, 0, 0, k * cam.z, (W / 2 - cam.x * cam.z) * k, (H / 2 - cam.y * cam.z) * k);
+    v.c.imageSmoothingEnabled = false;
+  }
+  function scr(x, y){ return { x: (x - G.cam.x) * G.cam.z + W / 2, y: (y - G.cam.y) * G.cam.z + H / 2 }; }
+  // anyone, by what they are
+  function drawKind(c, a, x, y, moving, up, t){
+    var f = a.face;
+    if (a.kind === 'bear') drawBearAt(c, x, y, f, a.h > 0 ? 2 : (moving && Math.floor(a.anim * 0.7) % 2 ? 1 : 0), up, ball.holder === a);
+    else if (a.kind === 'snow'){
+      c.save(); c.translate(x, y); c.scale(0.7, 0.7); c.translate(0, -FLOOR); drawSnowman(c, a.snow, t); c.restore();
+      // Mr. Fire's little flame on top of his beanie
+      c.fillStyle = Math.floor(t * 8) % 2 ? '#f87800' : '#f8d800'; c.fillRect(x - 1, y - 32, 2, 2); c.fillStyle = '#f83800'; c.fillRect(x, y - 33, 1, 1);
+    }
+    else if (a.kind === 'neigh'){
+      var fr = NEIGH_SPR[a.h > 0 ? 2 : (moving && Math.floor(a.anim * 0.7) % 2 ? 1 : 0)];
+      c.drawImage(f > 0 ? fr.r : fr.l, x - 9, y - 25);
+      c.fillStyle = '#000'; pxLine(c, x + f * 2, y - 14, x + f * (up ? 3 : 6), y - (up ? 25 : 8), 3);
+      c.fillStyle = '#58c878'; pxLine(c, x + f * 2 + 1, y - 13, x + f * (up ? 3 : 6) + 1, y - (up ? 24 : 7), 1);
+    }
+    else if (a.kind === 'bolt'){
+      var img = BOLT_SPR[moving && Math.floor(t * 12) % 2 ? 1 : 0];
+      var arm = function(sd){
+        var sx = x + sd * 5, sy = y - 14, ex = up ? x + sd * 3 + f * 2 : x + sd * 8, ey = up ? y - 27 : y - 7;
+        c.fillStyle = '#000'; pxLine(c, sx - 1, sy - 1, ex - 1, ey - 1, 3);
+        c.fillStyle = '#8890a8'; pxLine(c, sx, sy, ex, ey, 1);
+        c.fillStyle = '#58f8f8'; c.fillRect(ex, ey, 1, 1);
+      };
+      arm(-f); c.drawImage(img, x - 7, y - 25);
+      c.fillStyle = '#58f8f8'; c.fillRect(x - 2 + f, y - 19, 2, 1); c.fillRect(x + 1 + f, y - 19, 2, 1);
+      arm(f);
+    }
+    else if (a.kind === 'king') drawKingPlayer(c, x, y, f, up);
+    else {
+      drawAvatar(c, look(a), x, y, f, legFrame(a.h > 0, moving ? 1 : 0, a.anim), up, 0);
+      if (a.kind === 'kai' || a.kind === 'lei') drawLeiAt(c, x, y);
+    }
+  }
+  G.draw = function(v){
+    var c = v.c, t = G.t, cam = G.cam;
+    gameXf(v); c.fillStyle = '#10142a'; c.fillRect(0, 0, W, H);
+    camXf(v);
+    c.drawImage(jamBg(), JAM_BGX, 0);
+    // a banner in the rafters
+    c.fillStyle = '#000'; c.fillRect(JAM_L / 2 - 61, 1, 122, 9); c.fillStyle = '#601020'; c.fillRect(JAM_L / 2 - 60, 2, 120, 7);
+    c.fillStyle = '#f8d000'; c.fillRect(JAM_L / 2 - 60, 2, 120, 1); c.fillRect(JAM_L / 2 - 60, 8, 120, 1);
+    // flyovers
+    G.flyers.forEach(function(f){
+      var fr = f.kind === 'nene' ? NENE_SPR[Math.floor(f.f) % 2] : (f.kind === 'drone' ? DRONE_SPR.scout[Math.floor(f.f) % 2] : HFLY_SPR[Math.floor(f.f) % 2]);
+      c.drawImage(f.dir > 0 ? fr.r : fr.l, Math.round(f.x - 7), Math.round(f.y - 4));
+    });
+    // pigeons on the scorer's table railing
+    G.pigeons.forEach(function(q){ var fr = PIGEONS[q.kind].sit[q.peck]; c.drawImage(q.face > 0 ? fr.r : fr.l, Math.round(q.x - 4), 89); });
+    // the bench: the teams you beat, cheering or groaning when you score
+    G.bench.forEach(function(b){
+      var by = JAM_TOP - 1 - (b.react > 0 && b.cheer ? Math.round(Math.abs(Math.sin(b.react * 12)) * 3) : 0);
+      c.save(); c.globalAlpha = 0.95;
+      drawKind(c, b, Math.round(b.x), by, false, b.react > 0 && b.cheer, t);
+      c.restore();
+    });
+    c.fillStyle = '#000'; c.fillRect(82, JAM_TOP - 3, 150, 3); c.fillStyle = '#7a4a24'; c.fillRect(83, JAM_TOP - 2, 148, 1);
+    // King Hooper in his courtside seat (with the parrot on his shoulder), and Carl with the cooler
+    if (king.on && king.x > -30){
+      var kx = Math.round(king.x), ky = Math.round(JAM_TOP + king.z / JAM_ZK);
+      if (G.dark > 0.05){ c.fillStyle = 'rgba(248,208,64,.18)'; c.beginPath(); c.ellipse(kx, ky - 10, 18, 22, 0, 0, Math.PI * 2); c.fill(); }
+      drawKingAt(c, kx, ky - (king.walkTo != null && Math.floor(king.anim) % 2 ? 1 : 0), king.face, t);
+      var pf = BIRDS[2].fr[0]; c.drawImage(king.face > 0 ? pf.r : pf.l, kx - king.face * 6 - 7, ky - 20);
+    }
+    if (carl.x > -30 && carl.x < JAM_L + 50){
+      var cx0 = Math.round(carl.x), cy0 = Math.round(JAM_TOP + carl.z / JAM_ZK);
+      drawCart(c, cx0 + 14, cy0);
+      drawAvatar(c, VENDOR_LOOK, cx0, cy0, carl.face, legFrame(false, carl.walkTo != null ? 1 : 0, carl.anim), false, 0);
+    }
+    drawJamHoop(c, 0, G.netK === 0 ? G.netT : 0);
+    drawJamHoop(c, 1, G.netK === 1 ? G.netT : 0);
+    c.fillStyle = 'rgba(0,0,0,.3)';
+    P.forEach(function(a){ if (a.hide) return; c.beginPath(); c.ellipse(Math.round(a.x), Math.round(JAM_TOP + a.z / JAM_ZK), K(a).big ? 8 : 5, 2, 0, 0, Math.PI * 2); c.fill(); });
+    c.beginPath(); c.ellipse(Math.round(ball.x), Math.round(JAM_TOP + ball.z / JAM_ZK), 3, 1, 0, 0, Math.PI * 2); c.fill();
+    var order = P.slice().sort(function(a, b){ return a.z - b.z; });
+    var ballDrawn = false, ballY = JAM_TOP + ball.z / JAM_ZK;
+    order.forEach(function(a){
+      if (!ballDrawn && ball.holder == null && ballY < JAM_TOP + a.z / JAM_ZK){ drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, t * 8, 0); ballDrawn = true; }
+      if (a.hide) return;
+      var x = Math.round(a.x), y = Math.round(JAM_TOP + a.z / JAM_ZK - a.h), moving = Math.abs(a.vx) + Math.abs(a.vz) > 5;
+      var up = !!a.meter || (a === me && !!G.meter) || a.h > 0;
+      if (a === me && G.magic){ c.fillStyle = MAGIC_COLS[Math.floor(t * 10) % MAGIC_COLS.length]; c.globalAlpha = 0.25; c.beginPath(); c.ellipse(x, y - 9, 8, 12, 0, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; }
+      drawKind(c, a, x, y, moving, up, t);
+      if (a === me && G.drinkT > 0) drawBottle(c, x + a.face * 5, y - 12, G.drinkKind, t);
+      if (a.kind === 'king' && G.parrot){ var pf2 = BIRDS[2].fr[0]; c.drawImage(a.face > 0 ? pf2.r : pf2.l, x - a.face * 6 - 7, y - 20); }
+      if (a.picked > 0){ c.fillStyle = '#f8d800'; var tall = K(a).tall || 18; for (var sk = 0; sk < 3; sk++){ var sa = t * 7 + sk * 2.1; c.fillRect(Math.round(x + Math.cos(sa) * 7), Math.round(y - tall + Math.sin(sa) * 2), 1, 1); } }
+      if (ball.holder === a) drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, a.dp * a.face, 0);
+      var mt = a === me ? G.meter : a.meter;
+      if (mt){
+        var mxx = x - a.face * (a.kind === 'bear' ? 6 : 0), myy = y + (a.kind === 'bear' ? 4 : (a.kind === 'snow' ? -2 : 0));
+        drawMeter(c, mxx, myy, mt.p);
+        if (a === me && G.magic) vText(v, 'MAGIC', scr(a.x, y - 34).x, scr(a.x, y - 34).y, MAGIC_COLS[Math.floor(t * 10) % MAGIC_COLS.length], Math.max(7, Math.round(nameSize(v) * 0.7)));
+        else if (a === me && mt.ideal >= 0){
+          var ty = Math.round(myy - 30 + 20 - mt.ideal * 20), tx = Math.round(mxx - 4) - 7;
+          c.fillStyle = '#000'; c.fillRect(tx - 2, ty - 1, 7, 3);
+          c.fillStyle = Math.abs(mt.p - mt.ideal) < 0.07 ? '#58f878' : '#fcfcfc'; c.fillRect(tx - 1, ty, 5, 1);
+        } else if (a === me) vText(v, 'TOO FAR', scr(a.x, y - 34).x, scr(a.x, y - 34).y, '#f86060', Math.max(7, Math.round(nameSize(v) * 0.7)));
+        camXf(v);
+      }
+    });
+    if (!ballDrawn && ball.holder == null) drawBall(c, ball.x, JAM_TOP + ball.z / JAM_ZK - ball.h, t * 8, 0);
+    // the front row: penguins and seals came to watch
+    for (var fi = 0; fi < 7; fi++){
+      var fx = 40 + fi * 62, fyy = JAM_TOP + Math.round(JAM_ZR / JAM_ZK) + 11;
+      if (fi % 2 === 0){ var pg = Math.floor(t * 0.7 + fi) % 5 === 0 ? PENGUIN_SPR.blink : PENGUIN_SPR.stand; c.drawImage(fi % 4 ? pg.r : pg.l, fx - 3, fyy - 10 - (G.netT > 0 && G.netK === 1 ? 2 : 0)); }
+      else { var sl = SEAL_SPR[Math.floor(t * 2 + fi) % 2]; c.drawImage(fi % 3 ? sl.l : sl.r, fx - 8, fyy - 7); }
+    }
+    if (G.dark > 0.01){ c.fillStyle = 'rgba(8,8,24,' + (G.dark * 0.6).toFixed(3) + ')'; c.fillRect(JAM_BGX, 0, JAM_BGW, JAM_BGH); }
+    if (G.dark > 0.05 && king.on && king.x > -30){ var kx2 = Math.round(king.x), ky2 = Math.round(JAM_TOP + king.z / JAM_ZK); drawKingAt(c, kx2, ky2, king.face, t); }
+    drawParts(c, G.parts);
+    var ns = Math.max(7, Math.round(nameSize(v) * 0.7 * Math.min(1, cam.z + 0.2)));
+    order.forEach(function(a){
+      if (a.hide || a.x < -20 || a.x > JAM_L + 20) return;
+      camXf(v);
+      var top = JAM_TOP + a.z / JAM_ZK - a.h - (K(a).tall || 18), p0 = scr(a.x, top);
+      if (a === me){ c.fillStyle = '#f8d800'; var ax = Math.round(a.x), ay = Math.round(top - 2); c.fillRect(ax - 2, ay - 3, 5, 1); c.fillRect(ax - 1, ay - 2, 3, 1); c.fillRect(ax, ay - 1, 1, 1); }
+      vText(v, nm(a) === 'KING HOOPER' ? 'KING' : nm(a), p0.x, p0.y - 3, JAM_TEAM_COL[a.team], ns);
+    });
+    G.bench.forEach(function(b){ if (b.react > 0 && b.word){ var bp = scr(b.x, JAM_TOP - (K(b).tall || 18) - 6); vText(v, b.word, bp.x, bp.y, b.cheer ? '#58f878' : '#f86060', Math.max(6, Math.round(ns * 0.85))); } });
+    if (king.on && king.x > -30 && G.phase !== 'play'){ var kp = scr(king.x, JAM_TOP + king.z / JAM_ZK - 40); vText(v, 'KING HOOPER', kp.x, kp.y, '#f8c000', ns); }
+    var bp2 = scr(JAM_L / 2, 6); vText(v, 'THE BRACKET MATCHES', bp2.x, bp2.y, '#f8d000', Math.max(6, Math.round(ns * 0.9)));
+    gameXf(v);
+    // the scoreboard
+    c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(W / 2 - 74, 2, 148, 13);
+    vText(v, 'YOU+DRE ' + G.pts[0] + '   ' + G.pts[1] + ' ' + teamTag(), W / 2, 9, '#fcfcfc', nameSize(v));
+    if (G.match){
+      var clk = G.sudden ? 'SUDDEN DEATH' : (G.match === 4 ? (G.half === 1 ? '1ST ' : '2ND ') : '') + fmt(G.left);
+      c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(W / 2 - 30, 15, 60, 9);
+      vText(v, clk, W / 2, 20, G.sudden || G.left < 10 ? '#f86060' : '#f8d800', Math.round(nameSize(v) * 0.85));
+    }
+    drawPops(v, G.pops);
+  };
+  G.hud = function(){
+    var lbl = G.match === 4 ? 'FINAL: TO 21' : (G.match ? 'MATCH ' + G.match + ': TO 11' : 'THE BRACKET');
+    return { balls: -1, info: G.phase === 'play' ? lbl : '', time: G.phase === 'play' ? 'SHOT :' + Math.max(0, Math.ceil(G.clock)) : '' };
+  };
+  G.resultHtml = function(){ return '<p>' + (G.done && G.clearText === 'CHAMPIONS!' ? 'YOU AND DRE ARE THE CHAMPIONS!' : 'MATCH ' + G.match + ': YOU+DRE ' + G.pts[0] + ' - ' + G.pts[1] + ' ' + teamTag()) + '</p>'; };
+  // handy for testing
+  G.skipIntro = function(){ G.queue = []; G.step = null; G.ui = null; G.uiRev++; king.x = king.seat; king.walkTo = null; carl.x = carl.home; carl.walkTo = null; startMatch(1); };
+  G.jumpTo = function(n, partner){
+    G.queue = []; G.step = null; G.ui = null; G.uiRev++;
+    var T = BR_TEAMS[n - 1]; G.bench = [];
+    for (var i = 0; i < n - 1; i++) toBench(BR_TEAMS[i].a, BR_TEAMS[i].b);
+    if (n === 4){ G.partner = partner || 'bolt'; G.bench = G.bench.filter(function(b){ return b.kind !== G.partner; }); king.on = false; setTeam('king', G.partner); G.parrot = { st: 'fly', t: 0, f: 0 }; }
+    else setTeam(T.a, T.b);
+    king.x = king.seat; king.walkTo = null; carl.x = carl.home; carl.walkTo = null;
+    startMatch(n);
+  };
+  G.halftimeNow = function(){ G.left = 0.01; G.half = 1; };
+  G.dbg = { me: me, dre: dre, A1: A1, A2: A2, ball: ball, king: king, carl: carl };
+  return G;
+}
+
+/* ============================================================
    THE BOARDS
 ============================================================ */
 var BOARDS = [
@@ -5773,7 +6624,9 @@ var BOARDS = [
   { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
     how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' },
   { id: 'equus', name: 'PLANET EQUUS', sub: 'A GAME OF HUMAN AGAINST NEIGHTHAN THE HORSE ALIEN', make: EquusGame,
-    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>UNLIMITED JUMPS HERE. PLATFORMS DROP IF YOU STAND TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.<br>SHOTS GO THROUGH FLIES BUT MAKE THEM ANGRY: STOMP THEM OR LOSE A HEART (3 HEARTS = A LETTER).' }
+    how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>UNLIMITED JUMPS HERE. PLATFORMS DROP IF YOU STAND TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.<br>SHOTS GO THROUGH FLIES BUT MAKE THEM ANGRY: STOMP THEM OR LOSE A HEART (3 HEARTS = A LETTER).' },
+  { id: 'bracket', name: 'THE BRACKET MATCHES', sub: 'YOU AND DRE VS EVERY TEAM, THEN KING HOOPER HIMSELF IN THE FINAL', make: BracketGame,
+    how: '2 ON 2 FULL COURT. MATCHES 1-3: FIRST TO 11, OR AHEAD AFTER 1 MINUTE. TIED? SUDDEN DEATH.<br>FROSTY &amp; MR. FIRE, THEN KAI &amp; LEI, THEN NEIGHTHAN &amp; BOLT. LOSE AND YOU RUN IT BACK.<br>THE FINAL: KING HOOPER AND A PARTNER HE PICKS. TWO 1 MINUTE HALVES, FIRST TO 21.<br>A (Z) JUMPS &nbsp; B (SPACE) SHOOTS OR STEALS &nbsp; C (X) PASSES OR CALLS FOR IT &nbsp; RUN BY DRE FOR A PICK<br>CARL SELLS DRINKS AT HALFTIME... BE A GOOD TIPPER.' }
 ];
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
