@@ -4985,7 +4985,7 @@ function AlohaGame(){
         shootBall(O, 0.5);
         var tx = (gg.rl + gg.rr) / 2, rise = b0.y - gg.y, T = Math.max(0.7, Math.sqrt(2 * Math.max(0, rise) / BALL_G) * 1.25 + 0.15) + Math.abs(tx - b0.x) / 500;
         b0.vx = (tx - b0.x) / T; b0.vy = -rise / T - 0.5 * BALL_G * T; b0.two = true;
-        O.rapidT = 1.0;
+        O.rapidT = 1.6;
       }
       return 0;
     }
