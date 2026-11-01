@@ -31,6 +31,12 @@ button { font-family: inherit; }
 .bName { color: #fcfcfc; font-size: 13px; line-height: 1.5; }
 .bSub { color: #c9b8ff; font-size: 8px; line-height: 1.8; margin-top: 8px; min-height: 3.6em; }
 .bBest { color: #f8d878; font-size: 9px; margin-top: 8px; }
+.bStars { font-family: sans-serif; font-size: 22px; margin-top: 8px; letter-spacing: 4px; }
+.bNext { color: #8a78c8; font-size: 8px; margin-top: 6px; }
+.stars { font-family: sans-serif; font-size: 34px; letter-spacing: 6px; margin: 6px 0; }
+.stOn { color: #f8d800; text-shadow: 2px 2px 0 #000; }
+.si { font-family: sans-serif; font-size: 1.5em; line-height: 1; color: #f8d800; }
+.stOff { color: #3d2a80; text-shadow: 2px 2px 0 #000; }
 .bPlay { display: inline-block; margin-top: 10px; font-size: 11px; padding: 10px 16px; background: #d82800; color: #fff; border: 3px solid #000;
   border-radius: 8px; box-shadow: inset -3px -3px 0 #8a1800; }
 .board.sel .bPlay { background: #1f9a50; box-shadow: inset -3px -3px 0 #0e5a2a; }
@@ -1290,7 +1296,7 @@ function CourtGame(sky){
       pts = HOOPS[g.i].pts + (b.jump ? 1 : 0);
       if (b.jump) addPop(G.pops, cx, g.y - 12, 'JUMP SHOT +1', '#58f878');
       G.seq++;
-      if (G.seq >= HOOPS.length) startMagic();
+      if (G.seq >= HOOPS.length){ if (magicLocked()){ G.seq = 0; magicLockedPop(G); } else startMagic(); }
       else addPop(G.pops, W / 2, 52, 'NEXT: ' + HOOPS[G.seq].name + ' HOOP', '#58f8d0');
     } else addPop(G.pops, cx, g.y - 12, 'NOT LIT! 0 PTS', '#f8d878');
     if (pts){ gain(pts); addPop(G.pops, p.x, p.y - 28, '+' + pts + ' PTS', '#fcfc78'); }
@@ -2834,7 +2840,7 @@ function IceGame(){
     addPop(G.pops, pg.x, FLOOR - 20, '+2 PENGUIN!', '#fcfc78');
     if (G.magic) return;
     G.bonks++;
-    if (G.bonks >= ICE_BONKS) startMagic();
+    if (G.bonks >= ICE_BONKS){ if (magicLocked()){ G.bonks = 0; magicLockedPop(G); return; } startMagic(); }
     else addPop(G.pops, W / 2, 30, 'PENGUINS ' + G.bonks + '/' + ICE_BONKS, '#58d8f8');
   }
   function snowBlock(b){
@@ -4285,7 +4291,7 @@ function CyberGame(){
   function charge(){
     if (G.over) return;
     G.oc++;
-    if (G.oc >= CY_OC_MAX) startOverclock();
+    if (G.oc >= CY_OC_MAX){ if (magicLocked()){ G.oc = 0; magicLockedPop(G); } else startOverclock(); }
     else addPop(G.pops, W / 2, 26, 'OVERCLOCK ' + G.oc + '/' + CY_OC_MAX, '#58f8f8');
   }
   function warp(g){
@@ -4982,7 +4988,8 @@ function AlohaGame(){
           burst(G.parts, s.x, FLOOR - 6, 8, ['#fcfcfc', '#9aa4b0'], 30, 40, 0.4);
           if (!G.blooming && !G.vol){
             G.stomps++;
-            if (G.stomps >= AL_STOMPS){ G.stomps = 0; G.blooming = true; G.bloomT = 15; addCheer(G.pops, W / 2, 34, 'THE HIBISCUS OPENS!'); addPop(G.pops, W / 2, 50, 'SCORE IN THE TIKI HOOP!', '#f878b8'); strum(); }
+            if (G.stomps >= AL_STOMPS && magicLocked()){ G.stomps = 0; magicLockedPop(G); }
+            else if (G.stomps >= AL_STOMPS){ G.stomps = 0; G.blooming = true; G.bloomT = 15; addCheer(G.pops, W / 2, 34, 'THE HIBISCUS OPENS!'); addPop(G.pops, W / 2, 50, 'SCORE IN THE TIKI HOOP!', '#f878b8'); strum(); }
             else addPop(G.pops, s.x, FLOOR - 22, 'BOING! SEALS ' + G.stomps + '/' + AL_STOMPS, '#fcfc78');
           } else addPop(G.pops, s.x, FLOOR - 22, 'BOING!', '#fcfcfc');
         }
@@ -6805,27 +6812,31 @@ function HomeScene(){
    THE BOARDS
 ============================================================ */
 var BOARDS = [
-  { id: 'street', name: 'STREET BALL', sub: 'AN OUTDOOR COURT, A CHAIN LINK FENCE, AND A GUY WHO WANTS TO BET YOU', make: StreetGame,
+  { id: 'street', stars: [70, 120, 180], name: 'STREET BALL', sub: 'AN OUTDOOR COURT, A CHAIN LINK FENCE, AND A GUY WHO WANTS TO BET YOU', make: StreetGame,
     how: 'WARM UP FOR A MINUTE... THEN SOMEBODY MIGHT WANT TO BET YOU.<br>STREET RULES: A BUCKET IS 1, BEHIND THE LINE IS 2<br>YOUR CASH IS IN THE TOP RIGHT. SPEND IT WISELY.' },
-  { id: 'gym', name: 'FREE THROWS', sub: 'SHOOT HOOPS IN THE GYM. WATCH OUT FOR THE BIRDS!', make: GymGame,
+  { id: 'gym', stars: [75, 130, 190], name: 'FREE THROWS', sub: 'SHOOT HOOPS IN THE GYM. WATCH OUT FOR THE BIRDS!', make: GymGame,
     how: 'BASKET 2 &nbsp; BEHIND THE 3 LINE 3 &nbsp; 3 IN A ROW = ON FIRE, 5 EACH<br>OFF A BIRD AND IN = 10 &nbsp; STOMP A BIRD +5<br>BIRDS YOU HIT DIVE-BOMB YOU, AND WATCH OUT FOR POOP!<br>3 HEARTS &nbsp; 1 MINUTE &nbsp; EVERY BASKET ADDS 3 SECONDS' },
-  { id: 'beach', name: 'HOOPS AT THE BEACH', sub: 'PALM TREE HOOPS: LIGHT THEM UP IN ORDER, THEN MAGIC', make: function(){ return CourtGame(false); },
+  { id: 'beach', stars: [80, 160, 240], magic: true, name: 'HOOPS AT THE BEACH', sub: 'PALM TREE HOOPS: LIGHT THEM UP IN ORDER, THEN MAGIC', make: function(){ return CourtGame(false); },
     how: 'SHOOT THE LIT HOOP IN ORDER: 2, 3, THEN 5 PTS &nbsp; JUMP SHOT +1<br>THEN MAGIC: DUNK THE LOW HOOP AND FOLLOW THE ARROWS FOR A SUPER DUNK,<br>DUNK THE GLASS HOOP, OR JUMP OFF THE PLATFORM AND SHOOT<br>GRAB YOUR REBOUND TO KEEP THE BALL &nbsp; 2 MINUTES' },
-  { id: 'sky', name: 'IN THE CLOUDS', sub: "AIR JORDANN'S ON: TRIPLE JUMP, SKY HOOP, RAIN CLOUDS", make: function(){ return CourtGame(true); },
+  { id: 'sky', stars: [75, 150, 215], magic: true, name: 'IN THE CLOUDS', sub: "AIR JORDANN'S ON: TRIPLE JUMP, SKY HOOP, RAIN CLOUDS", make: function(){ return CourtGame(true); },
     how: "YOU'RE WEARING THE AIR JORDANN'S: JUMP HIGHER, AND JUMP 3 TIMES<br>SPRINGY CLOUDS &nbsp; LIT HOOPS 2, 3, 5, THEN MAGIC<br>THE GOLDEN SKY HOOP IS WORTH 7 ANY TIME<br>DON'T HIT A RAIN CLOUD: LIGHTNING TAKES HALF YOUR POINTS! &nbsp; 2 MINUTES" },
-  { id: 'ice', name: 'FROZEN HOOPS', sub: 'SLIPPERY ICE, A POLAR BEAR, A SNOWMAN ON DEFENSE, AND PENGUINS', make: IceGame,
+  { id: 'ice', stars: [100, 300, 500], magic: true, name: 'FROZEN HOOPS', sub: 'SLIPPERY ICE, A POLAR BEAR, A SNOWMAN ON DEFENSE, AND PENGUINS', make: IceGame,
     how: 'WALL HOOPS 2 AND 3 PTS, AND THE 5 HANGS FROM THE ICICLES &nbsp; JUMP SHOT +1<br>BEAT THE POLAR BEAR IN 2 MINUTES (+10). THE ICE IS SLIPPERY!<br>THE SNOWMAN SWATS SHOTS. A BALL THAT GOES IN CAN BONK A PENGUIN: +2. BONK 3 FOR MAGIC:<br>10 BALLS PER SHOT, AND DUNK A GLASS HOOP FOR THE TURBO SLAM' },
-  { id: 'jam', name: 'THE REMATCH', sub: '2 ON 2, FULL COURT: YOU AND DRE VS FROSTY AND THE SNOWMAN', make: JamGame,
+  { id: 'jam', stars: [8, 15, 25], unlock: 'win', name: 'THE REMATCH', sub: '2 ON 2, FULL COURT: YOU AND DRE VS FROSTY AND THE SNOWMAN', make: JamGame,
     how: 'FIRST TO 15. 2S AND 3S. 10 SECOND SHOT CLOCK.<br>&#9664; &#9654; &#9650; &#9660; RUN THE WHOLE COURT<br>A (Z KEY) JUMPS &nbsp; B (SPACE) SHOOTS: HOLD AND LET GO, IN THE AIR FOR A JUMP SHOT, CLOSE = LAYUP<br>C (X KEY) PASSES TO DRE, OR CALLS FOR THE BALL &nbsp; ON DEFENSE: B STEALS, A JUMPS TO BLOCK' },
-  { id: 'cyber', name: 'CYBER COURT', sub: 'A NEON MACHINE WORLD: BEAT BOLT THE ROBOT AND DODGE THE DRONE BIRDS', make: CyberGame,
+  { id: 'cyber', stars: [30, 50, 72], magic: true, name: 'CYBER COURT', sub: 'A NEON MACHINE WORLD: BEAT BOLT THE ROBOT AND DODGE THE DRONE BIRDS', make: CyberGame,
     how: 'BEAT BOLT IN 2 MINUTES. MAINFRAME 3, HOLO-HOOPS 2 (THEY WARP WHEN SOMEONE SCORES)<br>RIDE THE HOVER PADS. BOLT OVERHEATS AFTER 3 SHOTS: THAT IS YOUR CHANCE<br>SHOOT DOWN DRONE BIRDS +3. RED-EYED DRONES ZAP: MOVE OFF THE RED LASER!<br>5 BASKETS OR DRONES = OVERCLOCK: SLOW TIME, LOCK-ON SHOTS, x2, AND THE UPLOAD DUNK' },
-  { id: 'aloha', name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
+  { id: 'aloha', stars: [25, 40, 58], magic: true, name: 'VOLCANO BEACH', sub: 'KAI AND LEI, SEALS TO HOP ON, NENE, SURFERS, AND TWO VOLCANOES TO CALM', make: AlohaGame,
     how: 'YOU VS KAI + LEI FOR 90 SECONDS. TIKI HOOP 2, PALM HOOP 3<br>HOP ON 3 SEALS AND THE HIBISCUS ON THE TIKI OPENS: SCORE THERE FOR 5<br>AND BOTH VOLCANOES WAKE UP. SLAM INTO THEIR CRATERS, BACK AND FORTH,<br>3 TIMES EACH (2 PTS A SLAM) BEFORE KAI AND LEI RUN UP THE SCORE. BONK A NENE +1' },
-  { id: 'equus', name: 'PLANET EQUUS', sub: 'A GAME OF HUMAN AGAINST NEIGHTHAN THE HORSE ALIEN', make: EquusGame,
+  { id: 'equus', stars: [10, 20, 35], unlock: 'win', name: 'PLANET EQUUS', sub: 'A GAME OF HUMAN AGAINST NEIGHTHAN THE HORSE ALIEN', make: EquusGame,
     how: 'NEIGHTHAN HOPS A ROUTE AND SHOOTS: COPY IT. SAME NUMBERED PLATFORMS AND FLIES,<br>IN ORDER, THEN SCORE IN THE SAME HOOP. TOUCH THE GROUND AND YOU START OVER.<br>YOU HAVE 10 SECONDS TO SHOOT ON YOUR TURN, OR IT IS A LETTER.<br>MISS AND YOU GET A LETTER: H-U-M-A-N. THEN YOU SET ONE: HIS MISSES SPELL H-O-R-S-E.<br>UNLIMITED JUMPS HERE. PLATFORMS DROP IF YOU STAND TOO LONG. JUMP ON HORSE FLIES TO BOUNCE.<br>SHOTS GO THROUGH FLIES BUT MAKE THEM ANGRY: STOMP THEM OR LOSE A HEART (3 HEARTS = A LETTER).' },
-  { id: 'bracket', name: 'THE BRACKET MATCHES', sub: 'YOU AND DRE VS EVERY TEAM, THEN KING HOOPER HIMSELF IN THE FINAL', make: BracketGame,
+  { id: 'bracket', stars: [50, 100, 150], name: 'THE BRACKET MATCHES', sub: 'YOU AND DRE VS EVERY TEAM, THEN KING HOOPER HIMSELF IN THE FINAL', make: BracketGame,
     how: '2 ON 2 FULL COURT. MATCHES 1-3: FIRST TO 11, OR AHEAD AFTER 1 MINUTE. TIED? SUDDEN DEATH.<br>FROSTY &amp; MR. FIRE, THEN KAI &amp; LEI, THEN NEIGHTHAN &amp; BOLT. LOSE AND YOU RUN IT BACK.<br>THE FINAL: KING HOOPER AND A PARTNER HE PICKS. TWO 1 MINUTE HALVES, FIRST TO 21.<br>A (Z) JUMPS &nbsp; B (SPACE) SHOOTS OR STEALS &nbsp; C (X) PASSES OR CALLS FOR IT &nbsp; RUN BY DRE FOR A PICK<br>CARL SELLS DRINKS AT HALFTIME... BE A GOOD TIPPER.' }
 ];
+function nextStarText(i){
+  var n = starsOf(i), B = BOARDS[i];
+  return n >= 3 ? 'ALL 3 STARS!' : 'NEXT ' + SI + ' AT ' + B.stars[n];
+}
 function bests(){ var b = load(BEST_KEY); return b && typeof b === 'object' ? b : {}; }
 function controlsText(){
   return isTouch() ? '&#9664; &#9654; RUN &nbsp; A JUMP (TAP AGAIN IN THE AIR) &nbsp; HOLD B, LET GO TO SHOOT'
@@ -6866,8 +6877,9 @@ function buildTitle(){
     var el = document.createElement('div'), open = isUnlocked(i);
     el.className = 'board' + (i === boardIdx ? ' sel' : '') + (open ? '' : ' locked');
     el.innerHTML = '<canvas></canvas><div class="bNum">BOARD ' + (i + 1) + '</div><div class="bName">' + B.name + '</div>' +
-      (open ? '<div class="bSub">' + B.sub + '</div><div class="bBest">BEST ' + (bs[B.id] || 0) + '</div><div class="bPlay">PLAY &#9654;</div>'
-            : '<div class="bLock">&#128274; WIN BOARD ' + i + ' TO UNLOCK</div><div class="bBest">&nbsp;</div><div class="bPlay">LOCKED</div>');
+      (open ? '<div class="bSub">' + B.sub + '</div><div class="bStars">' + starHtml(starsOf(i)) + '</div><div class="bBest">BEST ' + (bs[B.id] || 0) +
+              '</div><div class="bNext">' + nextStarText(i) + '</div><div class="bPlay">PLAY &#9654;</div>'
+            : '<div class="bLock">&#128274; ' + needText(i - 1) + ' TO UNLOCK</div><div class="bStars">' + starHtml(0) + '</div><div class="bBest">&nbsp;</div><div class="bNext">&nbsp;</div><div class="bPlay">LOCKED</div>');
     el.onclick = function(){ ac(); boardIdx = i; tryStart(); };
     el.onmouseenter = function(){ selectBoard(i, true); };
     box.appendChild(el);
@@ -6881,7 +6893,26 @@ function buildTitle(){
   $('help').innerHTML = controlsText() + '<br>' + (isTouch() ? 'TAP A BOARD TO PLAY' : '&#9664; &#9654; PICK A BOARD &nbsp; SPACE OR ENTER TO PLAY') + '<br>GAME CONTROLLERS WORK TOO';
 }
 /* ---------- unlocking: win a board to open the next one (or know the cheat code) ---------- */
-function unlockedUpTo(){ return load(CHEAT_KEY) ? BOARDS.length - 1 : Math.max(0, +load(UNLOCK_KEY) || 0); }
+/* stars: 1, 2 or 3 for your best score. 2 stars opens the next board, except boards 6 and 9, where you have to win.
+   1 star opens that board's magic. */
+function starsFor(B, sc){ var n = 0; for (var k = 0; k < 3; k++) if (sc >= B.stars[k]) n = k + 1; return n; }
+function starsOf(i){ var B = BOARDS[i]; return starsFor(B, bests()[B.id] || 0); }
+var SI = '<span class="si">&#9733;</span>';
+function starHtml(n){ var h = ''; for (var k = 0; k < 3; k++) h += k < n ? '<span class="stOn">&#9733;</span>' : '<span class="stOff">&#9733;</span>'; return h; }
+function needText(i){ return BOARDS[i].unlock === 'win' ? 'WIN BOARD ' + (i + 1) : 'GET 2 ' + SI + ' ON BOARD ' + (i + 1); }
+function unlockedUpTo(){
+  if (load(CHEAT_KEY)) return BOARDS.length - 1;
+  var n = Math.max(0, +load(UNLOCK_KEY) || 0);
+  while (n < BOARDS.length - 1 && BOARDS[n].unlock !== 'win' && starsOf(n) >= 2) n++;
+  return n;
+}
+function magicLocked(){ var B = BOARDS[boardIdx]; return !load(CHEAT_KEY) && !!game && starsFor(B, Math.max(bests()[B.id] || 0, game.score || 0)) < 1; }   // reaching 1 star mid-game opens it too
+function magicLockedPop(G){
+  addCheer(G.pops, W / 2, 30, 'MAGIC LOCKED!');
+  addPop(G.pops, W / 2, 48, 'SCORE ' + BOARDS[boardIdx].stars[0] + ' FOR 1 STAR', '#f8d878');
+  addPop(G.pops, W / 2, 58, 'TO UNLOCK MAGIC', '#f8d878');
+  tone(150, 0.2, 'square', 0.05, -60);
+}
 function isUnlocked(i){ return i <= unlockedUpTo(); }
 function drawLockedPreview(cv){
   var c = cv.getContext('2d'), w = cv.width, h = cv.height;
@@ -6901,7 +6932,7 @@ function tryStart(){
   var el = $('boards').children[boardIdx];
   if (el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
   tone(150, 0.2, 'square', 0.05, -60);
-  toast('&#128274; LOCKED! WIN BOARD ' + boardIdx + ': ' + BOARDS[boardIdx - 1].name + '<br>TO UNLOCK ' + BOARDS[boardIdx].name);
+  toast('&#128274; LOCKED! ' + needText(boardIdx - 1) + ': ' + BOARDS[boardIdx - 1].name + '<br>TO UNLOCK ' + BOARDS[boardIdx].name);
 }
 /* ---------- the pre-title screen ---------- */
 var homeScene = null, homeView = null;
@@ -6971,7 +7002,10 @@ function startBoard(){
   mode = 'intro'; introT = 4; hudLast = {};
   showScreen('scrGame');
   resize();
-  showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + '</p><h1>' + B.name + '</h1><p class="how">' + B.how + '</p>' +
+  var st = starsOf(boardIdx), mLock = B.magic && st < 1 && !load(CHEAT_KEY);
+  showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + '</p><h1>' + B.name + '</h1><p class="stars">' + starHtml(st) + '</p>' +
+    '<p class="tip">' + SI + ' ' + B.stars[0] + ' &nbsp; ' + SI + SI + ' ' + B.stars[1] + ' &nbsp; ' + SI + SI + SI + ' ' + B.stars[2] + '</p><p class="how">' + B.how + '</p>' +
+    (mLock ? '<p class="how" style="color:#f8d878">&#128274; MAGIC IS LOCKED UNTIL YOU GET 1 ' + SI + ' ON THIS BOARD</p>' : '') +
     '<p class="tip">' + controlsText() + '</p>' +
     '<div class="row"><button data-act="go">GO! <span id="cd">4</span></button><button class="sm" data-act="menu">BOARDS</button></div>',
     { go: begin, menu: goTitle });
@@ -6993,15 +7027,20 @@ function finish(){
   if (isBest){ bs[B.id] = sc; store(BEST_KEY, bs); }
   mode = 'over';
   // win a board (boards with no winner just need finishing) and the next one opens up
-  var won = game.won !== false, newly = '';
-  if (won && boardIdx < BOARDS.length - 1 && !isUnlocked(boardIdx + 1)){
+  // stars for this run, and what they open: 2 stars opens the next board (on boards 6 and 9 you have to win)
+  var won = game.won !== false, newly = '', runSt = starsFor(B, sc), bestSt = starsFor(B, Math.max(best0, sc)), had = starsFor(B, best0);
+  var last = boardIdx >= BOARDS.length - 1, wasOpen = last || isUnlocked(boardIdx + 1);
+  var earned = B.unlock === 'win' ? won : bestSt >= 2;
+  if (!wasOpen && earned){
     store(UNLOCK_KEY, boardIdx + 1);
     newly = '<p class="how" style="color:#58f878">&#128275; BOARD ' + (boardIdx + 2) + ' UNLOCKED: ' + BOARDS[boardIdx + 1].name + '!</p>';
-  } else if (!won && boardIdx < BOARDS.length - 1 && !isUnlocked(boardIdx + 1)) newly = '<p class="how" style="color:#f86060">WIN THIS BOARD TO UNLOCK THE NEXT ONE</p>';
+  } else if (!wasOpen) newly = '<p class="how" style="color:#f86060">' + (B.unlock === 'win' ? 'WIN THIS BOARD' : 'GET 2 ' + SI + ' (' + B.stars[1] + ' PTS)') + ' TO UNLOCK THE NEXT ONE</p>';
+  if (B.magic && had < 1 && bestSt >= 1 && !load(CHEAT_KEY)) newly += '<p class="how" style="color:#e0b0ff">&#10024; MAGIC UNLOCKED ON THIS BOARD!</p>';
+  var starsP = '<p class="stars">' + starHtml(runSt) + '</p>' + (runSt < 3 ? '<p class="tip">NEXT ' + SI + ' AT ' + B.stars[runSt] + '</p>' : '');
   var nextB = boardIdx < BOARDS.length - 1 && isUnlocked(boardIdx + 1) ? '<button' + (game.nextFirst ? '' : ' class="sm"') + ' data-act="next">NEXT BOARD &#9654;</button>' : '';
   var againB = '<button' + (game.nextFirst && nextB ? ' class="sm"' : '') + ' data-act="again">AGAIN</button>';
   var btns = (game.nextFirst ? nextB + againB : againB + nextB) + '<button class="sm" data-act="menu">BOARDS</button>';
-  showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + ': ' + B.name + '</p><h1>' + (isBest ? 'NEW BEST!' : 'NICE!') + '</h1><p>SCORE ' + sc + '</p>' +
+  showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + ': ' + B.name + '</p><h1>' + (isBest ? 'NEW BEST!' : 'NICE!') + '</h1>' + starsP + '<p>SCORE ' + sc + '</p>' +
     (game.resultHtml ? game.resultHtml() : '') + '<p class="how">BEST ' + Math.max(best0, sc) + '</p>' + newly + '<div class="row">' + btns + '</div>',
     { again: startBoard, menu: goTitle, next: function(){ selectBoard(boardIdx + 1, true); startBoard(); } });
   if (isBest) sfx.fanfare();
