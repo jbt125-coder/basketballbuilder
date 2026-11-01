@@ -6671,11 +6671,57 @@ function BracketGame(){
 function HomeScene(){
   var S = { t: 0, st: 'walk', tx: 120, netT: 0, hold: 0, wait: 0, miss: false, made: false,
     p: { x: 60, y: FLOOR, vx: 0, vy: 0, face: 1, anim: 0, dp: 0 },
-    b: { x: 66, y: FLOOR - 10, vx: 0, vy: 0, rot: 0, held: true, flying: false, bounces: 0 } };
+    b: { x: 66, y: FLOOR - 10, vx: 0, vy: 0, rot: 0, held: true, flying: false, bounces: 0 },
+    cars: [], carT: rand(0.3, 1.5), pigeons: [], flyT: rand(3, 6) };
   var hp = GYM_HOOP, hx = (hp.rl + hp.rr) / 2;
+  [24, 40, 52, 88, 122, 136, 178, 196].sort(function(){ return Math.random() - 0.5; }).slice(0, 6).forEach(function(x){
+    S.pigeons.push({ home: x, x: x, y: FENCE_TOP, kind: Math.random() < 0.4 ? 1 : 0, face: Math.random() < 0.5 ? 1 : -1, st: 'sit', peck: 0, peckT: rand(1, 4), f: 0, vx: 0, vy: 0, backT: 0 });
+  });
+  // the neighborhood: the same cars and pigeons as on the street court (quiet here)
+  function stepCars(dt){
+    var i;
+    if ((S.carT -= dt) <= 0){
+      var dir = Math.random() < 0.5 ? 1 : -1, big = Math.random() < 0.15, x0 = dir > 0 ? -30 : W + 30, y = dir > 0 ? 105 : 93, clear = true;
+      for (i = 0; i < S.cars.length; i++) if (S.cars[i].y === y && Math.abs(S.cars[i].x - x0) < 70) clear = false;
+      if (clear) S.cars.push({ dir: dir, x: x0, y: y, sp: rand(62, 78) * (big ? 0.85 : 1), len: big ? 44 : 28, col: big ? '#f8b800' : pick(CAR_COLS), big: big });
+      S.carT = rand(1.2, 4);
+    }
+    for (i = S.cars.length - 1; i >= 0; i--){
+      var car = S.cars[i];
+      car.x += car.dir * car.sp * dt;
+      if (car.x < -60 || car.x > W + 60) S.cars.splice(i, 1);
+    }
+  }
+  function flyOff(pg){ pg.st = 'fly'; pg.vx = (Math.random() < 0.5 ? -1 : 1) * rand(45, 70); pg.face = sgn(pg.vx); pg.vy = -rand(30, 50); }
+  function stepPigeons(dt){
+    var b = S.b;
+    if ((S.flyT -= dt) <= 0){
+      var sitting = S.pigeons.filter(function(q){ return q.st === 'sit'; });
+      if (sitting.length) flyOff(pick(sitting));
+      S.flyT = rand(4, 9);
+    }
+    S.pigeons.forEach(function(pg){
+      if (pg.st === 'sit'){
+        pg.peck = Math.max(0, pg.peck - dt); pg.peckT -= dt;
+        if (pg.peckT <= 0){ pg.peck = 0.25; pg.peckT = rand(1, 4); if (Math.random() < 0.25) pg.face = -pg.face; }
+        if (b.flying && Math.abs(b.x - pg.x) < 10 && Math.abs(b.y - pg.y) < 10) flyOff(pg);      // a shot whizzing by spooks them
+      } else if (pg.st === 'fly'){
+        pg.f += dt * 16; pg.x += pg.vx * dt; pg.y += pg.vy * dt; pg.vy -= 15 * dt;
+        if (pg.x < -12 || pg.x > W + 12 || pg.y < -10){ pg.st = 'gone'; pg.backT = rand(3, 8); }
+      } else if (pg.st === 'gone'){
+        if ((pg.backT -= dt) <= 0){ pg.st = 'land'; pg.x = pg.home < W / 2 ? -10 : W + 10; pg.y = rand(10, 30); }
+      } else {
+        var dx = pg.home - pg.x, dy = FENCE_TOP - pg.y, d = hyp(dx, dy);
+        pg.f += dt * 16;
+        if (d < 2){ pg.st = 'sit'; pg.x = pg.home; pg.y = FENCE_TOP; pg.face = Math.random() < 0.5 ? 1 : -1; }
+        else { pg.x += dx / d * 50 * dt; pg.y += dy / d * 50 * dt; pg.face = dx > 0 ? 1 : -1; }
+      }
+    });
+  }
   S.update = function(dt){
     var p = S.p, b = S.b;
     S.t += dt; S.netT = Math.max(0, S.netT - dt);
+    stepCars(dt); stepPigeons(dt);
     var air = p.y < FLOOR || p.vy < 0;
     if (S.st === 'walk' || S.st === 'fetch'){
       var tx = S.st === 'fetch' ? b.x - 4 : S.tx, d = tx - p.x;
@@ -6731,7 +6777,13 @@ function HomeScene(){
     var c = v.c, p = S.p, b = S.b, y = hp.y, bx = hp.bx;
     gameXf(v);
     c.drawImage(streetBack(), 0, 0);
+    S.cars.forEach(function(car){ drawCar(c, car); });
     c.drawImage(streetFront(), 0, 0);
+    S.pigeons.forEach(function(pg){
+      if (pg.st === 'gone') return;
+      var spr = PIGEONS[pg.kind], fr = pg.st === 'sit' ? spr.sit[pg.peck > 0 ? 1 : 0] : spr.fly[Math.floor(pg.f) % 2];
+      c.drawImage(pg.face > 0 ? fr.r : fr.l, Math.round(pg.x - 4), Math.round(pg.y - (pg.st === 'sit' ? 6 : 3)));
+    });
     c.fillStyle = '#000'; c.fillRect(bx, y + 6, 4, FLOOR - y - 6); c.fillRect(bx - 2, FLOOR - 3, 8, 3);
     c.fillStyle = '#7a8088'; c.fillRect(bx + 1, y + 6, 2, FLOOR - y - 6); c.fillRect(bx - 1, FLOOR - 2, 6, 2);
     c.fillStyle = '#000'; c.fillRect(bx - 1, y - 21, 5, 28);
