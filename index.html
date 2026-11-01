@@ -75,6 +75,9 @@ button { font-family: inherit; }
 #cheatIn { width: 100%; box-sizing: border-box; font-family: inherit; font-size: 10px; padding: 8px; margin: 6px 0 8px; border: 3px solid #000; border-radius: 6px;
   background: #fcfcfc; color: #000; -webkit-user-select: text; user-select: text; }
 #cheatMsg { min-height: 1.8em; color: #58f878; margin-top: 8px; }
+#secret { border-top: 3px dashed #f8d800; margin-top: 10px; padding-top: 12px; }
+#secret.hide { display: none; }
+#resetMsg { min-height: 1.8em; color: #f8d878; }
 
 /* ––––– the game ––––– */
 #scrGame { flex-direction: column; background: #000; touch-action: none; }
@@ -175,6 +178,13 @@ body.touch:not(.land) #pad { flex: 1; }
     <input id="cheatIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="PASSWORD">
     <div class="cRow"><button type="button" id="cheatGo">ENTER</button><button type="button" id="cogClose">CLOSE</button></div>
     <div id="cheatMsg"></div>
+    <div id="secret" class="hide">
+      <h2>SECRET MENU</h2>
+      <div class="cRow"><span>OPEN ALL BOARDS</span><button type="button" id="allBtn">OFF</button></div>
+      <div class="cRow"><span>UNLOCK ALL MAGIC</span><button type="button" id="magBtn">OFF</button></div>
+      <div class="cRow"><span>RESET ALL SCORES,<br>STARS AND BOARDS</span><button type="button" id="resetBtn" class="off">RESET</button></div>
+      <div id="resetMsg"></div>
+    </div>
   </div>
   <h1 class="logo">BASKETBALL<br>HOOPS</h1>
   <canvas id="homeCv"></canvas>
@@ -250,7 +260,7 @@ var MAGIC_COLS = ['#f878f8', '#78f8f8', '#f8f878', '#b078ff', '#fcfcfc'];
 var CHEERS = ['NICE SHOT!', 'SWEET!', 'NOICE!!', 'BALLER!!', 'BUCKETS!', 'SPLASH!', 'ON FIRE!', 'CASH!', 'MONEY!', 'SWISH!'];
 var CHEER_COLS = ['#f8d800', '#58f878', '#58d8f8', '#f878d8', '#f89838', '#c078f8', '#fcfcfc'];
 var SKY_PTS = 7, RAIN_HW = 10;
-var BEST_KEY = 'basketballHoopsBest_v1', SEL_KEY = 'basketballHoopsBoard_v1', UNLOCK_KEY = 'basketballHoopsUnlock_v1', CHEAT_KEY = 'basketballHoopsCheat_v1', SND_KEY = 'basketballHoopsSound_v1';
+var BEST_KEY = 'basketballHoopsBest_v1', SEL_KEY = 'basketballHoopsBoard_v1', UNLOCK_KEY = 'basketballHoopsUnlock_v1', CHEAT_KEY = 'basketballHoopsCheat_v1', MAGIC_KEY = 'basketballHoopsMagic_v1', SND_KEY = 'basketballHoopsSound_v1';
 
 var SHIRTS = ['#d82800', '#f87800', '#f8d800', '#38b818', '#1fb8a0', '#2858f0', '#8030d0', '#f05898', '#fcfcfc', '#303030'];
 var SKINS = ['#fcd8b0', '#f0b880', '#c88850', '#8a5430'];
@@ -6906,7 +6916,7 @@ function unlockedUpTo(){
   while (n < BOARDS.length - 1 && BOARDS[n].unlock !== 'win' && starsOf(n) >= 2) n++;
   return n;
 }
-function magicLocked(){ var B = BOARDS[boardIdx]; return !load(CHEAT_KEY) && !!game && starsFor(B, Math.max(bests()[B.id] || 0, game.score || 0)) < 1; }   // reaching 1 star mid-game opens it too
+function magicLocked(){ var B = BOARDS[boardIdx]; return !load(MAGIC_KEY) && !!game && starsFor(B, Math.max(bests()[B.id] || 0, game.score || 0)) < 1; }   // reaching 1 star mid-game opens it too
 function magicLockedPop(G){
   addCheer(G.pops, W / 2, 30, 'MAGIC LOCKED!');
   addPop(G.pops, W / 2, 48, 'SCORE ' + BOARDS[boardIdx].stars[0] + ' FOR 1 STAR', '#f8d878');
@@ -6948,18 +6958,38 @@ function submitCheat(){
   var v = $('cheatIn').value.toLowerCase().replace(/\s+/g, ''), msg = $('cheatMsg');
   if (!v) return;
   if (v === 'yourdadacademy'){
-    store(CHEAT_KEY, true);
-    msg.style.color = '#58f878'; msg.innerHTML = 'CHEAT ACTIVATED!<br>ALL BOARDS UNLOCKED';
+    msg.style.color = '#58f878'; msg.innerHTML = 'SECRET MENU OPEN!';
+    showSecret(true);
     sfx.fanfare();
   } else { msg.style.color = '#f86060'; msg.textContent = 'WRONG CODE'; tone(150, 0.2, 'square', 0.05, -60); }
   $('cheatIn').value = '';
 }
+/* the secret menu (behind the cheat code): open all boards, unlock all magic, reset everything.
+   It hides again whenever the settings close, so the code is needed each time. */
+function showSecret(on){ $('secret').classList.toggle('hide', !on); $('resetMsg').textContent = ''; resetArm = false; $('resetBtn').textContent = 'RESET'; paintSecret(); }
+function paintSecret(){
+  [['allBtn', CHEAT_KEY], ['magBtn', MAGIC_KEY]].forEach(function(a){ var on = !!load(a[1]); $(a[0]).textContent = on ? 'ON' : 'OFF'; $(a[0]).className = on ? 'on' : 'off'; });
+}
+var resetArm = false;
+function bindSecret(){
+  $('allBtn').onclick = function(){ ac(); store(CHEAT_KEY, !load(CHEAT_KEY)); paintSecret(); sfx.tick(); };
+  $('magBtn').onclick = function(){ ac(); store(MAGIC_KEY, !load(MAGIC_KEY)); paintSecret(); sfx.tick(); };
+  $('resetBtn').onclick = function(){
+    ac();
+    if (!resetArm){ resetArm = true; $('resetBtn').textContent = 'SURE?'; $('resetMsg').textContent = 'TAP AGAIN TO ERASE EVERYTHING'; tone(150, 0.2, 'square', 0.05, -60); return; }
+    try { [BEST_KEY, UNLOCK_KEY, SEL_KEY].forEach(function(k){ localStorage.removeItem(k); }); } catch (e) {}
+    boardIdx = 0; resetArm = false; $('resetBtn').textContent = 'RESET';
+    $('resetMsg').textContent = 'ALL SCORES, STARS AND BOARDS RESET';
+    sfx.tick();
+  };
+}
 function bindHome(){
+  bindSecret();
   soundOn = load(SND_KEY) !== false;
   $('goBtn').onclick = function(){ ac(); sfx.tick(); goTitle(); };
   $('homeBtn').onclick = function(){ ac(); goHome(); };
-  $('cog').onclick = function(){ ac(); var pn = $('cogPanel'); pn.classList.toggle('hide'); $('cheatMsg').textContent = ''; };
-  $('cogClose').onclick = function(){ $('cogPanel').classList.add('hide'); };
+  $('cog').onclick = function(){ ac(); var pn = $('cogPanel'); pn.classList.toggle('hide'); $('cheatMsg').textContent = ''; showSecret(false); };
+  $('cogClose').onclick = function(){ $('cogPanel').classList.add('hide'); showSecret(false); };
   $('sndBtn').onclick = function(){
     soundOn = !soundOn; store(SND_KEY, soundOn);
     $('sndBtn').textContent = soundOn ? 'ON' : 'OFF'; $('sndBtn').className = soundOn ? 'on' : 'off';
@@ -7002,7 +7032,7 @@ function startBoard(){
   mode = 'intro'; introT = 4; hudLast = {};
   showScreen('scrGame');
   resize();
-  var st = starsOf(boardIdx), mLock = B.magic && st < 1 && !load(CHEAT_KEY);
+  var st = starsOf(boardIdx), mLock = B.magic && st < 1 && !load(MAGIC_KEY);
   showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + '</p><h1>' + B.name + '</h1><p class="stars">' + starHtml(st) + '</p>' +
     '<p class="tip">' + SI + ' ' + B.stars[0] + ' &nbsp; ' + SI + SI + ' ' + B.stars[1] + ' &nbsp; ' + SI + SI + SI + ' ' + B.stars[2] + '</p><p class="how">' + B.how + '</p>' +
     (mLock ? '<p class="how" style="color:#f8d878">&#128274; MAGIC IS LOCKED UNTIL YOU GET 1 ' + SI + ' ON THIS BOARD</p>' : '') +
@@ -7035,7 +7065,7 @@ function finish(){
     store(UNLOCK_KEY, boardIdx + 1);
     newly = '<p class="how" style="color:#58f878">&#128275; BOARD ' + (boardIdx + 2) + ' UNLOCKED: ' + BOARDS[boardIdx + 1].name + '!</p>';
   } else if (!wasOpen) newly = '<p class="how" style="color:#f86060">' + (B.unlock === 'win' ? 'WIN THIS BOARD' : 'GET 2 ' + SI + ' (' + B.stars[1] + ' PTS)') + ' TO UNLOCK THE NEXT ONE</p>';
-  if (B.magic && had < 1 && bestSt >= 1 && !load(CHEAT_KEY)) newly += '<p class="how" style="color:#e0b0ff">&#10024; MAGIC UNLOCKED ON THIS BOARD!</p>';
+  if (B.magic && had < 1 && bestSt >= 1 && !load(MAGIC_KEY)) newly += '<p class="how" style="color:#e0b0ff">&#10024; MAGIC UNLOCKED ON THIS BOARD!</p>';
   var starsP = '<p class="stars">' + starHtml(runSt) + '</p>' + (runSt < 3 ? '<p class="tip">NEXT ' + SI + ' AT ' + B.stars[runSt] + '</p>' : '');
   var nextB = boardIdx < BOARDS.length - 1 && isUnlocked(boardIdx + 1) ? '<button' + (game.nextFirst ? '' : ' class="sm"') + ' data-act="next">NEXT BOARD &#9654;</button>' : '';
   var againB = '<button' + (game.nextFirst && nextB ? ' class="sm"' : '') + ' data-act="again">AGAIN</button>';
