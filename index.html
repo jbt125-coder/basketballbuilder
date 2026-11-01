@@ -35,6 +35,40 @@ button { font-family: inherit; }
   border-radius: 8px; box-shadow: inset -3px -3px 0 #8a1800; }
 .board.sel .bPlay { background: #1f9a50; box-shadow: inset -3px -3px 0 #0e5a2a; }
 .help { color: #8a78c8; font-size: 8px; line-height: 2.2; text-align: center; margin-top: 18px; }
+.board.locked { cursor: not-allowed; opacity: .85; }
+.board.locked .bLock { color: #f86060; font-size: 8px; line-height: 1.8; margin-top: 8px; min-height: 3.6em; }
+.board.locked .bPlay { background: #4a4060; box-shadow: inset -3px -3px 0 #2a2040; }
+.board.shake { animation: shake .35s; }
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #000; border: 3px solid #f8d800; color: #fcfcfc;
+  font-size: 10px; padding: 12px 16px; border-radius: 8px; z-index: 20; text-align: center; line-height: 1.6; max-width: 90vw; pointer-events: none; }
+#toast.hide { display: none; }
+.homeBtn { align-self: flex-start; font-size: 9px; padding: 8px 12px; background: #3d2a80; color: #fff; border: 3px solid #000; border-radius: 8px; cursor: pointer; }
+
+/* ––––– the pre-title screen ––––– */
+#scrHome { flex-direction: column; align-items: center; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 18px); }
+#homeCv { width: min(100%, 640px); aspect-ratio: 16 / 9; image-rendering: pixelated; display: block; border: 4px solid #000; border-radius: 10px; background: #000;
+  box-shadow: 0 0 0 3px #3d2a80; flex: none; }
+#goBtn { margin: 22px 0 18px; font-size: clamp(12px, 3vw, 18px); padding: 16px 22px; background: #1f9a50; color: #fff; border: 4px solid #000; border-radius: 10px;
+  box-shadow: inset -4px -4px 0 #0e5a2a; cursor: pointer; line-height: 1.5; }
+#goBtn:hover, #goBtn:focus { background: #28b862; outline: none; }
+.credit { color: #c9b8ff; font-size: 9px; line-height: 1.8; text-align: center; margin: 4px 0; }
+.yt { color: #f86060; font-size: 9px; line-height: 1.8; text-align: center; margin: 8px 0; text-decoration: underline; }
+.yt:hover { color: #ff9090; }
+#cog { position: fixed; top: calc(env(safe-area-inset-top) + 10px); right: 12px; width: 44px; height: 44px; font-size: 26px; line-height: 1; padding: 0;
+  background: #26185a; color: #f8d800; border: 3px solid #000; border-radius: 10px; cursor: pointer; z-index: 5; }
+#cogPanel { position: fixed; top: calc(env(safe-area-inset-top) + 62px); right: 12px; width: min(300px, calc(100vw - 24px)); background: #1b1040; border: 3px solid #f8d800;
+  border-radius: 10px; padding: 14px; z-index: 6; font-size: 9px; line-height: 1.8; box-shadow: 4px 4px 0 #000; }
+#cogPanel.hide { display: none; }
+#cogPanel h2 { font-size: 11px; color: #f8d800; font-weight: 400; margin: 0 0 12px; }
+#cogPanel .cRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+#cogPanel button { font-size: 9px; padding: 8px 10px; border: 3px solid #000; border-radius: 6px; cursor: pointer; color: #fff; background: #3d2a80; }
+#cogPanel button.on { background: #1f9a50; }
+#cogPanel button.off { background: #a82000; }
+#cheatIn { width: 100%; box-sizing: border-box; font-family: inherit; font-size: 10px; padding: 8px; margin: 6px 0 8px; border: 3px solid #000; border-radius: 6px;
+  background: #fcfcfc; color: #000; -webkit-user-select: text; user-select: text; }
+#cheatMsg { min-height: 1.8em; color: #58f878; margin-top: 8px; }
 
 /* ––––– the game ––––– */
 #scrGame { flex-direction: column; background: #000; touch-action: none; }
@@ -125,8 +159,28 @@ body.touch:not(.land) #pad { flex: 1; }
 </head>
 <body>
 
+<!-- ================= PRE-TITLE: shooting around ================= -->
+<div class="scr" id="scrHome">
+  <button type="button" id="cog" aria-label="Settings">&#9881;</button>
+  <div id="cogPanel" class="hide">
+    <h2>SETTINGS</h2>
+    <div class="cRow"><span>SOUND EFFECTS</span><button type="button" id="sndBtn">ON</button></div>
+    <div>CHEAT CODE</div>
+    <input id="cheatIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="PASSWORD">
+    <div class="cRow"><button type="button" id="cheatGo">ENTER</button><button type="button" id="cogClose">CLOSE</button></div>
+    <div id="cheatMsg"></div>
+  </div>
+  <h1 class="logo">BASKETBALL<br>HOOPS</h1>
+  <canvas id="homeCv"></canvas>
+  <button type="button" id="goBtn">LET'S GO PLAY<br>SOME HOOPS!</button>
+  <div class="credit">GAME CREATED BY MR. TYLER USING CLAUDE</div>
+  <a class="yt" href="https://youtube.com/@yourdadacademy?si=Yj-9W-9x-e4kddv_" target="_blank" rel="noopener">SUBSCRIBE ON YOUTUBE: YOURDADACADEMY</a>
+</div>
+<div id="toast" class="hide"></div>
+
 <!-- ================= TITLE: pick a board ================= -->
 <div class="scr" id="scrTitle">
+  <button type="button" class="homeBtn" id="homeBtn">&#9664; HOME</button>
   <h1 class="logo">BASKETBALL<br>HOOPS</h1>
   <div class="sub">PICK A BOARD</div>
   <div class="boards" id="boards"></div>
@@ -163,6 +217,7 @@ body.touch:not(.land) #pad { flex: 1; }
    Board 8: volcano beach (Kai and Lei, seals, nene, surfers, and the volcano)
    Board 9: planet equus (a game of HUMAN against Neighthan the horse alien)
    Board 10: the bracket matches (you and Dre vs every team, then King Hooper in the final)
+   Pre-title screen: the little guy shooting around, settings (sound, cheat code), credits; boards unlock as you win
 ============================================================ */
 
 /* ============================================================
@@ -189,7 +244,7 @@ var MAGIC_COLS = ['#f878f8', '#78f8f8', '#f8f878', '#b078ff', '#fcfcfc'];
 var CHEERS = ['NICE SHOT!', 'SWEET!', 'NOICE!!', 'BALLER!!', 'BUCKETS!', 'SPLASH!', 'ON FIRE!', 'CASH!', 'MONEY!', 'SWISH!'];
 var CHEER_COLS = ['#f8d800', '#58f878', '#58d8f8', '#f878d8', '#f89838', '#c078f8', '#fcfcfc'];
 var SKY_PTS = 7, RAIN_HW = 10;
-var BEST_KEY = 'basketballHoopsBest_v1', SEL_KEY = 'basketballHoopsBoard_v1';
+var BEST_KEY = 'basketballHoopsBest_v1', SEL_KEY = 'basketballHoopsBoard_v1', UNLOCK_KEY = 'basketballHoopsUnlock_v1', CHEAT_KEY = 'basketballHoopsCheat_v1', SND_KEY = 'basketballHoopsSound_v1';
 
 var SHIRTS = ['#d82800', '#f87800', '#f8d800', '#38b818', '#1fb8a0', '#2858f0', '#8030d0', '#f05898', '#fcfcfc', '#303030'];
 var SKINS = ['#fcd8b0', '#f0b880', '#c88850', '#8a5430'];
@@ -249,7 +304,9 @@ function ac(){
   if (AC && AC.state === 'suspended'){ try { AC.resume(); } catch (e) {} }
   return AC;
 }
+var soundOn = true;
 function tone(f, d, type, vol, slide, delay){
+  if (!soundOn) return;
   var a = ac(); if (!a) return;
   type = type || 'square'; vol = vol || 0.06; slide = slide || 0; delay = delay || 0;
   var t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
@@ -259,6 +316,7 @@ function tone(f, d, type, vol, slide, delay){
   o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d + 0.02);
 }
 function hiss(d, vol, freq){
+  if (!soundOn) return;
   var a = ac(); if (!a) return;
   var n = Math.floor(a.sampleRate * d), buf = a.createBuffer(1, n, a.sampleRate), data = buf.getChannelData(0);
   for (var i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
@@ -3235,8 +3293,8 @@ function IceGame(){
     stepFx(G.parts, G.pops, dt);
     if (G.left <= 0 && !G.done){
       G.left = 0; G.meter = null; G.magic = null;
-      if (G.me > G.them){ G.score += 10; G.clearText = 'YOU BEAT THE BEAR!'; addPop(G.pops, W / 2, 56, '+10 BEAR BONUS', '#58f878', true); }
-      else G.clearText = G.me === G.them ? 'TIE GAME!' : 'THE BEAR WINS!';
+      if (G.me > G.them){ G.score += 10; G.won = true; G.clearText = 'YOU BEAT THE BEAR!'; addPop(G.pops, W / 2, 56, '+10 BEAR BONUS', '#58f878', true); }
+      else { G.won = false; G.clearText = G.me === G.them ? 'TIE GAME!' : 'THE BEAR WINS!'; }
       G.done = true;
     }
   };
@@ -3798,7 +3856,7 @@ function JamGame(){
       { fn: function(){ G.beamT = 1.8; G.beamed = true; G.nextFirst = true; tone(200, 1.6, 'sawtooth', 0.04, 1600); hiss(1.6, 0.04, 3000); } }, { wait: 2 }] : [
       say('FROSTY', 'TOLD YOU. BEAR BALL!'),
       say('DRE', "WE'LL GET 'EM NEXT TIME.")]).concat([
-      { fn: function(){ G.clearText = win ? 'YOU WIN THE REMATCH!' : 'FROSTY & SNOWMAN WIN!'; G.done = true; } }]));
+      { fn: function(){ G.won = win; G.clearText = win ? 'YOU WIN THE REMATCH!' : 'FROSTY & SNOWMAN WIN!'; G.done = true; } }]));
   }
 
   G.key = function(k){
@@ -4524,7 +4582,7 @@ function CyberGame(){
       say('BOLT', 'A TIE. MY CIRCUITS DID NOT PREDICT THIS.')] : [
       say('BOLT', 'AS PREDICTED. 99.7%.'),
       say('YOU', 'RUN IT BACK, TIN CAN.')]).concat([
-      { fn: function(){ G.clearText = win ? 'SYSTEM DEFEATED!' : (G.me === G.them ? 'TIE GAME!' : 'BOLT WINS!'); G.done = true; } }]));
+      { fn: function(){ G.won = win; G.clearText = win ? 'SYSTEM DEFEATED!' : (G.me === G.them ? 'TIE GAME!' : 'BOLT WINS!'); G.done = true; } }]));
   }
 
   function drawBoltBot(c, t){
@@ -5147,7 +5205,7 @@ function AlohaGame(){
       say('LEI', 'WE GOTTA PRACTICE MORE, BRAH.')] : [
       say('LEI', 'SHOOTS, TWO AGAINST ONE WAS NOT FAIR, EH?'),
       say('KAI', 'COME BACK ANY TIME. ALOHA!')]).concat([
-      { fn: function(){ G.clearText = win ? 'MAHALO! YOU WIN!' : 'KAI & LEI WIN!'; G.done = true; } }]));
+      { fn: function(){ G.won = win; G.clearText = win ? 'MAHALO! YOU WIN!' : 'KAI & LEI WIN!'; G.done = true; } }]));
   }
 
   function drawLei(c, x, y){ var cols = ['#f878b8', '#f8d800', '#fcfcfc', '#f87800']; for (var k = 0; k < 4; k++){ c.fillStyle = cols[k]; c.fillRect(Math.round(x) - 2 + k, Math.round(y) - 9 + (k === 1 || k === 2 ? 1 : 0), 1, 1); } }
@@ -5686,7 +5744,7 @@ function EquusGame(){
       say('NEIGHTHAN', 'NEIGH! YOU ARE A WORTHY EARTHLING.')] : [
       say('NEIGHTHAN', 'H-U-M-A-N! YOU ARE A HUMAN. HA!'),
       say('YOU', 'I MEAN... I AM A HUMAN.')]).concat([
-      { fn: function(){ G.clearText = win ? 'YOU WIN AT HUMAN!' : 'NEIGHTHAN WINS!'; G.done = true; } }]));
+      { fn: function(){ G.won = win; G.clearText = win ? 'YOU WIN AT HUMAN!' : 'NEIGHTHAN WINS!'; G.done = true; } }]));
   }
 
   G.draw = function(v){
@@ -6287,7 +6345,7 @@ function BracketGame(){
       say('KING HOOPER', 'I FORGIVE YOU FOR BONKING MY PARROT. YOU ARE THE CHAMPIONS OF EVERY COURT!'),
       say('DRE', 'CHAMPIONS!!! I TOLD YOU WE GOT THIS!'),
       say('CARL', 'DRINKS ARE ON THE HOUSE TONIGHT!'),
-      { fn: function(){ fireworks(G.parts, 8); sfx.fanfare(); G.score += 25; G.clearText = 'CHAMPIONS!'; G.done = true; } }]);
+      { fn: function(){ fireworks(G.parts, 8); sfx.fanfare(); G.score += 25; G.won = true; G.clearText = 'CHAMPIONS!'; G.done = true; } }]);
   }
 
   /* ---------- the intro: the King announces the bracket ---------- */
@@ -6608,6 +6666,90 @@ function BracketGame(){
 }
 
 /* ============================================================
+   THE PRE-TITLE SCREEN: the little guy shooting around on the street court by himself
+============================================================ */
+function HomeScene(){
+  var S = { t: 0, st: 'walk', tx: 120, netT: 0, hold: 0, wait: 0, miss: false, made: false,
+    p: { x: 60, y: FLOOR, vx: 0, vy: 0, face: 1, anim: 0, dp: 0 },
+    b: { x: 66, y: FLOOR - 10, vx: 0, vy: 0, rot: 0, held: true, flying: false, bounces: 0 } };
+  var hp = GYM_HOOP, hx = (hp.rl + hp.rr) / 2;
+  S.update = function(dt){
+    var p = S.p, b = S.b;
+    S.t += dt; S.netT = Math.max(0, S.netT - dt);
+    var air = p.y < FLOOR || p.vy < 0;
+    if (S.st === 'walk' || S.st === 'fetch'){
+      var tx = S.st === 'fetch' ? b.x - 4 : S.tx, d = tx - p.x;
+      if (Math.abs(d) < 2){
+        p.vx = 0;
+        if (S.st === 'fetch'){ if (b.y > FLOOR - BR - 16 && Math.abs(b.vx) < 80){ b.held = true; b.flying = false; S.st = 'walk'; S.tx = rand(46, 175); } }
+        else { S.st = 'aim'; S.hold = rand(0.35, 0.7); p.face = 1; S.jump = Math.random() < 0.55; }
+      } else { p.vx = sgn(d) * 58; p.face = sgn(d); }
+    } else if (S.st === 'aim'){
+      p.vx = 0;
+      if ((S.hold -= dt) <= 0 && !air){
+        if (S.jump && !S.jumped){ p.vy = -150; S.jumped = true; }
+        else if (!S.jump) shoot();
+      }
+      if (S.jumped && p.vy > -15 && air) shoot();
+    } else if (S.st === 'watch'){
+      if ((S.wait -= dt) <= 0 && !b.flying) S.st = 'fetch';
+    }
+    // the little guy
+    p.x = clamp(p.x + p.vx * dt, 10, W - 40);
+    if (air){ p.vy += 520 * dt; p.y += p.vy * dt; if (p.y >= FLOOR){ p.y = FLOOR; p.vy = 0; } }
+    if (Math.abs(p.vx) > 5) p.anim += dt * 10;
+    // the ball
+    if (b.held){
+      if (S.st === 'aim'){ b.x = p.x + p.face * 2; b.y = p.y - 17; }
+      else { p.dp += dt * 9; b.x = p.x + p.face * 6; b.y = p.y - BR - Math.abs(Math.sin(p.dp)) * 8; }
+    } else {
+      var py = b.y;
+      b.vy += BALL_G * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.rot += b.vx * dt * 0.2;
+      if (b.flying && py < hp.y && b.y >= hp.y){
+        if (!S.miss && !S.rimmed && Math.abs(b.x - hx) < 6){ S.netT = 0.5; b.vx *= 0.15; S.made = true; }
+        else if (S.miss && Math.abs(b.x - hp.rl) < 7){ S.miss = false; S.rimmed = true; b.vy = -Math.abs(b.vy) * 0.45; b.vx = -rand(50, 80); b.y = hp.y - 1; }
+      }
+      if (b.x > hp.bx - BR && b.y > hp.y - 22 && b.y < hp.y + 6){ b.x = hp.bx - BR; b.vx = -Math.abs(b.vx) * 0.5; }
+      if (b.y > FLOOR - BR){
+        b.y = FLOOR - BR;
+        if (b.flying && S.made){ b.vx = -rand(45, 75); }
+        b.flying = false;
+        if (b.vy > 40){ b.vy = -b.vy * 0.55; } else b.vy = 0;
+        b.vx *= 0.985;
+      }
+      if (b.x < 8){ b.x = 8; b.vx = Math.abs(b.vx) * 0.5; }
+    }
+  };
+  function shoot(){
+    var p = S.p, b = S.b;
+    S.miss = Math.random() < 0.18; S.made = false; S.jumped = false; S.rimmed = false;
+    var x0 = p.x + 2, y0 = p.y - 17, tx = S.miss ? hp.rl + 1 : hx, ty = hp.y - 1, dx = tx - x0, T = 0.8 + dx / 320;
+    b.held = false; b.flying = true; b.x = x0; b.y = y0; b.vx = dx / T; b.vy = (ty - y0 - 0.5 * BALL_G * T * T) / T;
+    S.st = 'watch'; S.wait = T + 0.9;
+  }
+  S.draw = function(v){
+    var c = v.c, p = S.p, b = S.b, y = hp.y, bx = hp.bx;
+    gameXf(v);
+    c.drawImage(streetBack(), 0, 0);
+    c.drawImage(streetFront(), 0, 0);
+    c.fillStyle = '#000'; c.fillRect(bx, y + 6, 4, FLOOR - y - 6); c.fillRect(bx - 2, FLOOR - 3, 8, 3);
+    c.fillStyle = '#7a8088'; c.fillRect(bx + 1, y + 6, 2, FLOOR - y - 6); c.fillRect(bx - 1, FLOOR - 2, 6, 2);
+    c.fillStyle = '#000'; c.fillRect(bx - 1, y - 21, 5, 28);
+    c.fillStyle = '#e4e4e4'; c.fillRect(bx, y - 20, 3, 26);
+    c.fillStyle = '#f87800'; c.fillRect(bx + 1, y - 8, 1, 6);
+    var ballBehind = b.flying && b.y > y - 2 && b.y < y + 12 && Math.abs(b.x - hx) < 10;
+    if (ballBehind) drawBall(c, b.x, b.y, b.rot, 0);
+    drawNet(c, hp.rl, hp.rr, y, S.netT, '#b8b8c4');
+    c.fillStyle = '#000'; c.fillRect(Math.round(hp.rl) - 1, y - 1, RIM_W + 3, 4);
+    c.fillStyle = '#f87800'; c.fillRect(Math.round(hp.rl), y, RIM_W + 1, 2);
+    var air = p.y < FLOOR;
+    drawAvatar(c, LOOK, Math.round(p.x), Math.round(p.y), p.face, legFrame(air, Math.abs(p.vx) > 5 ? p.vx : 0, p.anim), S.st === 'aim' && b.held, 0);
+    if (!ballBehind) drawBall(c, b.x, b.y, b.rot, 0);
+  };
+  return S;
+}
+
+/* ============================================================
    THE BOARDS
 ============================================================ */
 var BOARDS = [
@@ -6662,26 +6804,85 @@ var panelBtns = [], panelIdx = 0, hudLast = {};
 var previews = [];
 
 function showScreen(id){
-  ['scrTitle', 'scrGame'].forEach(function(s){ $(s).classList.toggle('on', s === id); });
+  ['scrHome', 'scrTitle', 'scrGame'].forEach(function(s){ $(s).classList.toggle('on', s === id); });
 }
 function buildTitle(){
   var box = $('boards'), bs = bests();
   box.innerHTML = '';
   previews = [];
   BOARDS.forEach(function(B, i){
-    var el = document.createElement('div');
-    el.className = 'board' + (i === boardIdx ? ' sel' : '');
+    var el = document.createElement('div'), open = isUnlocked(i);
+    el.className = 'board' + (i === boardIdx ? ' sel' : '') + (open ? '' : ' locked');
     el.innerHTML = '<canvas></canvas><div class="bNum">BOARD ' + (i + 1) + '</div><div class="bName">' + B.name + '</div>' +
-      '<div class="bSub">' + B.sub + '</div><div class="bBest">BEST ' + (bs[B.id] || 0) + '</div><div class="bPlay">PLAY &#9654;</div>';
-    el.onclick = function(){ ac(); boardIdx = i; startBoard(); };
+      (open ? '<div class="bSub">' + B.sub + '</div><div class="bBest">BEST ' + (bs[B.id] || 0) + '</div><div class="bPlay">PLAY &#9654;</div>'
+            : '<div class="bLock">&#128274; WIN BOARD ' + i + ' TO UNLOCK</div><div class="bBest">&nbsp;</div><div class="bPlay">LOCKED</div>');
+    el.onclick = function(){ ac(); boardIdx = i; tryStart(); };
     el.onmouseenter = function(){ selectBoard(i, true); };
     box.appendChild(el);
     var cv = el.querySelector('canvas');
     cv.width = W * 2; cv.height = H * 2;
-    var pv = { cv: cv, c: cv.getContext('2d'), S: 2, dpr: 1 }, g = B.make();
-    previews.push({ v: pv, g: g });
+    if (open){
+      var pv = { cv: cv, c: cv.getContext('2d'), S: 2, dpr: 1 }, g = B.make();
+      previews.push({ v: pv, g: g });
+    } else drawLockedPreview(cv);
   });
   $('help').innerHTML = controlsText() + '<br>' + (isTouch() ? 'TAP A BOARD TO PLAY' : '&#9664; &#9654; PICK A BOARD &nbsp; SPACE OR ENTER TO PLAY') + '<br>GAME CONTROLLERS WORK TOO';
+}
+/* ---------- unlocking: win a board to open the next one (or know the cheat code) ---------- */
+function unlockedUpTo(){ return load(CHEAT_KEY) ? BOARDS.length - 1 : Math.max(0, +load(UNLOCK_KEY) || 0); }
+function isUnlocked(i){ return i <= unlockedUpTo(); }
+function drawLockedPreview(cv){
+  var c = cv.getContext('2d'), w = cv.width, h = cv.height;
+  c.fillStyle = '#120a30'; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#1e1450'; for (var y = 0; y < h; y += 8) c.fillRect(0, y, w, 4);
+  c.font = Math.round(h * 0.62) + 'px "Press Start 2P", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#000'; c.fillText('?', w / 2 + 8, h / 2 + 12);
+  c.fillStyle = '#f8d800'; c.fillText('?', w / 2, h / 2 + 4);
+}
+var toastT = null;
+function toast(msg){
+  var el = $('toast'); el.innerHTML = msg; el.classList.remove('hide');
+  clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.add('hide'); }, 2200);
+}
+function tryStart(){
+  if (isUnlocked(boardIdx)){ startBoard(); return; }
+  var el = $('boards').children[boardIdx];
+  if (el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+  tone(150, 0.2, 'square', 0.05, -60);
+  toast('&#128274; LOCKED! WIN BOARD ' + boardIdx + ': ' + BOARDS[boardIdx - 1].name + '<br>TO UNLOCK ' + BOARDS[boardIdx].name);
+}
+/* ---------- the pre-title screen ---------- */
+var homeScene = null, homeView = null;
+function goHome(){
+  mode = 'home'; game = null;
+  hidePanel(); $('cogPanel').classList.add('hide');
+  if (!homeScene) homeScene = HomeScene();
+  if (!homeView){ var cv = $('homeCv'); cv.width = W * 4; cv.height = H * 4; homeView = { cv: cv, c: cv.getContext('2d'), S: 4, dpr: 1 }; }
+  showScreen('scrHome');
+  $('sndBtn').textContent = soundOn ? 'ON' : 'OFF'; $('sndBtn').className = soundOn ? 'on' : 'off';
+}
+function submitCheat(){
+  var v = $('cheatIn').value.toLowerCase().replace(/\s+/g, ''), msg = $('cheatMsg');
+  if (!v) return;
+  if (v === 'yourdadacademy'){
+    store(CHEAT_KEY, true);
+    msg.style.color = '#58f878'; msg.innerHTML = 'CHEAT ACTIVATED!<br>ALL BOARDS UNLOCKED';
+    sfx.fanfare();
+  } else { msg.style.color = '#f86060'; msg.textContent = 'WRONG CODE'; tone(150, 0.2, 'square', 0.05, -60); }
+  $('cheatIn').value = '';
+}
+function bindHome(){
+  soundOn = load(SND_KEY) !== false;
+  $('goBtn').onclick = function(){ ac(); sfx.tick(); goTitle(); };
+  $('homeBtn').onclick = function(){ ac(); goHome(); };
+  $('cog').onclick = function(){ ac(); var pn = $('cogPanel'); pn.classList.toggle('hide'); $('cheatMsg').textContent = ''; };
+  $('cogClose').onclick = function(){ $('cogPanel').classList.add('hide'); };
+  $('sndBtn').onclick = function(){
+    soundOn = !soundOn; store(SND_KEY, soundOn);
+    $('sndBtn').textContent = soundOn ? 'ON' : 'OFF'; $('sndBtn').className = soundOn ? 'on' : 'off';
+    if (soundOn){ ac(); sfx.tick(); }
+  };
+  $('cheatGo').onclick = submitCheat;
 }
 function selectBoard(i, quiet){
   i = (i + BOARDS.length) % BOARDS.length;
@@ -6739,11 +6940,17 @@ function finish(){
   var B = BOARDS[boardIdx], bs = bests(), best0 = bs[B.id] || 0, sc = game.score, isBest = sc > best0;
   if (isBest){ bs[B.id] = sc; store(BEST_KEY, bs); }
   mode = 'over';
-  var nextB = boardIdx < BOARDS.length - 1 ? '<button' + (game.nextFirst ? '' : ' class="sm"') + ' data-act="next">NEXT BOARD &#9654;</button>' : '';
+  // win a board (boards with no winner just need finishing) and the next one opens up
+  var won = game.won !== false, newly = '';
+  if (won && boardIdx < BOARDS.length - 1 && !isUnlocked(boardIdx + 1)){
+    store(UNLOCK_KEY, boardIdx + 1);
+    newly = '<p class="how" style="color:#58f878">&#128275; BOARD ' + (boardIdx + 2) + ' UNLOCKED: ' + BOARDS[boardIdx + 1].name + '!</p>';
+  } else if (!won && boardIdx < BOARDS.length - 1 && !isUnlocked(boardIdx + 1)) newly = '<p class="how" style="color:#f86060">WIN THIS BOARD TO UNLOCK THE NEXT ONE</p>';
+  var nextB = boardIdx < BOARDS.length - 1 && isUnlocked(boardIdx + 1) ? '<button' + (game.nextFirst ? '' : ' class="sm"') + ' data-act="next">NEXT BOARD &#9654;</button>' : '';
   var againB = '<button' + (game.nextFirst && nextB ? ' class="sm"' : '') + ' data-act="again">AGAIN</button>';
   var btns = (game.nextFirst ? nextB + againB : againB + nextB) + '<button class="sm" data-act="menu">BOARDS</button>';
   showPanel('<p class="bn">BOARD ' + (boardIdx + 1) + ': ' + B.name + '</p><h1>' + (isBest ? 'NEW BEST!' : 'NICE!') + '</h1><p>SCORE ' + sc + '</p>' +
-    (game.resultHtml ? game.resultHtml() : '') + '<p class="how">BEST ' + Math.max(best0, sc) + '</p><div class="row">' + btns + '</div>',
+    (game.resultHtml ? game.resultHtml() : '') + '<p class="how">BEST ' + Math.max(best0, sc) + '</p>' + newly + '<div class="row">' + btns + '</div>',
     { again: startBoard, menu: goTitle, next: function(){ selectBoard(boardIdx + 1, true); startBoard(); } });
   if (isBest) sfx.fanfare();
 }
@@ -6751,10 +6958,16 @@ function finish(){
 function keyDown(k){
   ac();
   if (k === 'c' && !(mode === 'play' && game && game.usesPass)) k = 'b';
+  if (mode === 'home'){
+    if ($('cogPanel').classList.contains('hide') && (k === 'a' || k === 'b' || k === 'start')) goTitle();
+    else if (k === 'back') $('cogPanel').classList.add('hide');
+    return;
+  }
   if (mode === 'title'){
     if (k === 'l' || k === 'u') selectBoard(boardIdx - 1);
     else if (k === 'r' || k === 'd') selectBoard(boardIdx + 1);
-    else if (k === 'a' || k === 'b' || k === 'start') startBoard();
+    else if (k === 'a' || k === 'b' || k === 'start') tryStart();
+    else if (k === 'back') goHome();
     return;
   }
   if (mode === 'play'){
@@ -6785,6 +6998,11 @@ function keyUp(k){
 var KEYMAP = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd', ' ': 'b', a: 'l', d: 'r', w: 'u', s: 'd', A: 'l', D: 'r', W: 'u', S: 'd', z: 'a', Z: 'a', x: 'c', X: 'c' };
 document.addEventListener('keydown', function(e){
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target && e.target.tagName === 'INPUT'){
+    if (e.key === 'Enter'){ e.preventDefault(); submitCheat(); }
+    else if (e.key === 'Escape'){ e.target.blur(); $('cogPanel').classList.add('hide'); }
+    return;
+  }
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P'){ e.preventDefault(); if (!e.repeat) keyDown('back'); return; }
   if (e.key === 'Enter'){ e.preventDefault(); if (!e.repeat) keyDown('start'); return; }
   var k = KEYMAP[e.key];
@@ -6875,7 +7093,7 @@ function pollPad(){
 function resize(){
   document.body.classList.toggle('land', window.innerWidth > window.innerHeight);
   document.body.classList.toggle('touch', isTouch());
-  if (mode === 'title') return;
+  if (mode === 'title' || mode === 'home') return;
   var st = $('stage');
   if (isTouch() && window.innerWidth <= window.innerHeight){
     // phone held upright: the court across the top, the controller fills the rest
@@ -6961,7 +7179,9 @@ var lastNow = 0;
 function frame(now){
   var dt = Math.min(0.05, (now - lastNow) / 1000 || 0); lastNow = now;
   pollPad();
-  if (mode === 'title'){
+  if (mode === 'home'){
+    if (homeScene){ homeScene.update(dt); homeScene.draw(homeView); }
+  } else if (mode === 'title'){
     // the board previews play quietly behind the title: just the scene, nobody moving
     for (var i = 0; i < previews.length; i++){ var P = previews[i]; P.g.t += dt; P.g.draw(P.v); }
   } else if (game){
@@ -6995,7 +7215,8 @@ view = makeView($('cv'));
 boardIdx = clamp(load(SEL_KEY) | 0, 0, BOARDS.length - 1);
 bindPad();
 resize();
-goTitle();
+bindHome();
+goHome();
 if (document.fonts && document.fonts.load) document.fonts.load('8px "Press Start 2P"').catch(function(){});
 requestAnimationFrame(frame);
 </script>
